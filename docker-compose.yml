@@ -1,0 +1,33 @@
+# NashGit — docker-compose for NAS deployment
+# Usage:
+#   1. Copy .env.example to .env and set your admin password + secret
+#   2. docker compose up -d
+#   3. Open http://<nas-ip>:3000
+
+services:
+  nashgit:
+    build: .
+    image: nashgit:latest
+    container_name: nashgit
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # All repos + the SQLite DB persist here. Back up this directory.
+      - ./data:/data
+    environment:
+      # --- Required on first run ---
+      # Admin password for the web UI. Only applied when the DB is empty.
+      # After that, change it from Settings in the UI.
+      NASHGIT_ADMIN_PASSWORD: ${NASHGIT_ADMIN_PASSWORD:-}
+      # Secret used to sign session JWTs. Set a long random string.
+      # If changed, all existing sessions are invalidated.
+      NASHGIT_SECRET: ${NASHGIT_SECRET:-}
+
+      # --- Optional ---
+      # Admin username (default: admin)
+      NASHGIT_ADMIN_USERNAME: ${NASHGIT_ADMIN_USERNAME:-admin}
+      # Public base URL for clone URLs shown in the UI (e.g. https://nas.local)
+      NASHGIT_PUBLIC_URL: ${NASHGIT_PUBLIC_URL:-}
+      # Port inside the container (rarely needs changing)
+      PORT: "3000"

@@ -121,6 +121,12 @@ export async function createRepo(
   } catch {
     /* older git may not need this */
   }
+  // Enable reflog on bare repos so we can capture from/to hashes on push.
+  try {
+    await execFileP('git', ['-C', path, 'config', 'core.logAllRefUpdates', 'true']);
+  } catch {
+    /* best-effort */
+  }
 
   db.prepare('INSERT INTO repos (name, description) VALUES (?, ?)').run(
     name,
@@ -178,7 +184,8 @@ export function recordPush(opts: {
 
 /**
  * Inspect the reflog of a repo after a push to capture what changed.
- * Returns the most recent ref update, or null if nothing useful is found.
+ * Reads the most recent reflog entry for each branch, returning the newest
+ * update's from/to hashes. Returns null if no reflog entries exist.
  */
 export async function detectRefChange(
   repoName: string
@@ -186,16 +193,56 @@ export async function detectRefChange(
   const path = repoPath(repoName);
   if (!existsSync(path)) return null;
   try {
-    const out = await git(path, ['reflog', '--format=%H', '-n', '1']);
-    if (!out) return null;
-    const to = out.split('\n')[0];
-    let from: string | null = null;
-    try {
-      from = await git(path, ['rev-parse', `${to}^`]);
-    } catch {
-      from = null;
+    // List all branch refs, then read the latest reflog entry for each.
+    const refs = await git(path, [
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/heads',
+    ]);
+    if (!refs) return null;
+
+    let latest: { from: string | null; to: string | null; ts: number } | null = null;
+
+    for (const ref of refs.split('\n').filter(Boolean)) {
+      try {
+        // reflog format: <old> <new> <committer> <timestamp> <tz>\t<message>
+        const entry = await git(path, [
+          'reflog',
+          '--format=%H %gd %ct',
+          '-n',
+          '1',
+          ref,
+        ]);
+        if (!entry) continue;
+        const [to, _ref, tsStr] = entry.split(' ');
+        const ts = Number(tsStr) || 0;
+
+        // Get the previous hash (the "from") — parent reflog entry or parent commit.
+        let from: string | null = null;
+        try {
+          const prev = await git(path, [
+            'reflog',
+            '--format=%H',
+            '-n',
+            '2',
+            '--skip',
+            '1',
+            ref,
+          ]);
+          from = prev || null;
+        } catch {
+          from = null;
+        }
+
+        if (!latest || ts > latest.ts) {
+          latest = { from, to, ts };
+        }
+      } catch {
+        /* skip this ref */
+      }
     }
-    return { from, to };
+
+    return latest;
   } catch {
     return null;
   }

@@ -1,0 +1,27 @@
+# Dependencies
+**/node_modules
+
+# Build artifacts
+client/build
+server/dist
+**/.svelte-kit
+
+# Data (never bake into the image)
+data
+**/data
+
+# Git
+.git
+.gitignore
+
+# Editor / OS
+.DS_Store
+**/.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# Docs
+README.md
+LICENSE

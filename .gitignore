@@ -1,14 +1,15 @@
+# Dependencies
 node_modules/
-data/
-node_modules
 
-# Output
-.output
-.vercel
-.netlify
-.wrangler
-/.svelte-kit
-/build
+# Build artifacts
+client/build/
+server/dist/
+server/public/
+**/.svelte-kit/
+
+# Data (runtime — repos + SQLite DB)
+data/
+data-docker/
 
 # OS
 .DS_Store
@@ -18,8 +19,10 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-!.env.test
 
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Logs
+*.log

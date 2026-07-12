@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { Request, Response } from 'express';
 import { config } from '../config.js';
-import { repoPath } from './repos.js';
 
 /**
  * Handle a git smart-HTTP request by spawning `git http-backend` as a CGI
@@ -16,22 +15,16 @@ import { repoPath } from './repos.js';
  * Reference: https://git-scm.com/docs/git-http-backend
  */
 export function handleGitRequest(req: Request, res: Response): void {
-  // Express puts the matched tail into req.params via the route pattern.
-  // We also accept a generic fallthrough so the path is always reconstructable.
-  const repoName = req.params.repo as string;
-  const subPath = (req.params[0] as string) || '';
-
-  // Reconstruct PATH_INFO the way git-http-backend expects:
-  //   /<repo>.git/<sub-path>
-  const pathInfo = `/${repoName}.git/${subPath}`.replace(/\/+$/, '');
+  // This handler is mounted under /git, so req.url is the path *within* that
+  // mount point — e.g. "/test-backup.git/info/refs". That's exactly the
+  // PATH_INFO that git-http-backend expects (relative to GIT_PROJECT_ROOT).
+  const pathInfo = req.url.split('?')[0].replace(/\/+$/, '') || '/';
 
   // CGI variables required by git-http-backend.
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     GIT_PROJECT_ROOT: config.reposDir,
     GIT_HTTP_EXPORT_ALL: '1',
-    // Allow push to non-bare too, and permit receiving into the current branch.
-    // Our repos are bare, but this keeps things lenient.
     REQUEST_METHOD: req.method,
     PATH_INFO: pathInfo,
     QUERY_STRING: req.url.split('?')[1] || '',
@@ -39,8 +32,6 @@ export function handleGitRequest(req: Request, res: Response): void {
     CONTENT_LENGTH: String(req.headers['content-length'] || ''),
     REMOTE_ADDR: req.ip || '',
     REMOTE_USER: (req as any).remoteUser || '',
-    GIT_HTTP_BACKEND_OVERRIDE_RECEIVE_PACK: '1',
-    // Ask git to stream large packs without buffering.
     GIT_PROTOCOL: (req.headers['git-protocol'] as string) || '',
     HTTP_GIT_PROTOCOL: (req.headers['git-protocol'] as string) || '',
     GATEWAY_INTERFACE: 'CGI/1.1',
@@ -49,8 +40,22 @@ export function handleGitRequest(req: Request, res: Response): void {
 
   const child = spawn('git', ['http-backend'], { env });
 
-  // Pipe the raw request body into the backend's stdin.
-  req.pipe(child.stdin);
+  // Surface git-http-backend errors to the server log (it normally writes
+  // diagnostics to stderr, not stdout).
+  child.stderr.on('data', (chunk: Buffer) => {
+    const msg = chunk.toString('utf8').trimEnd();
+    if (msg) console.error('[git-http-backend]', msg);
+  });
+
+  // Pipe the raw request body into the backend's stdin, and close stdin when
+  // the request ends so git-http-backend sees EOF (critical for GET requests
+  // which have no body — without this the backend hangs waiting for input).
+  req.pipe(child.stdin, { end: true });
+  req.on('end', () => {
+    if (!child.stdin.destroyed) child.stdin.end();
+  });
+  // Safety net: if the request errors, tear down the child.
+  req.on('error', () => child.kill());
 
   // git-http-backend writes a CGI response: headers, a blank line, then body.
   // We buffer until we've seen the header/body separator, then stream the body.
@@ -114,18 +119,17 @@ export function handleGitRequest(req: Request, res: Response): void {
   });
 
   child.on('error', (err) => {
+    console.error('[nashgit] git http-backend error:', err.message);
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end(`git http-backend failed to start: ${err.message}`);
     }
   });
 
-  child.on('exit', () => {
-    // nothing — response already ended via stdout 'end'
-  });
-
-  // If the client disconnects, tear down the backend.
-  req.on('close', () => {
-    child.kill();
+  // If the client disconnects mid-transfer (response not finished), tear down
+  // the backend so we don't leak a process. Only kill if the response hasn't
+  // completed — `res.writableEnded` is true once res.end() has been called.
+  res.on('close', () => {
+    if (!res.writableEnded) child.kill();
   });
 }
