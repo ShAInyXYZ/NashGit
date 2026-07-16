@@ -1,14 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- main stem -->
-  <path d="M260 64 C264 120 248 168 224 208" stroke="#a31621" stroke-width="14" stroke-linecap="round" fill="none"/>
-  <path d="M260 64 C272 120 300 168 336 200" stroke="#a31621" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <!-- stems -->
+  <path d="M180 260 Q220 160 260 90" stroke="#a31621" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <path d="M340 260 Q300 160 260 90" stroke="#a31621" stroke-width="14" stroke-linecap="round" fill="none"/>
 
   <!-- leaf -->
-  <path d="M260 64 C304 40 360 48 388 88 C404 110 400 146 384 166 C348 144 300 132 260 140 C268 110 268 84 260 64 Z" fill="#a31621"/>
+  <path d="M260 90 Q340 50 380 100 Q400 130 380 160 Q320 130 260 140 Q270 110 260 90 Z" fill="#a31621"/>
 
-  <!-- left cherry -->
-  <path d="M156 332 C100 332 68 280 68 232 C68 184 100 156 140 156 C160 156 176 166 188 184 C196 166 212 156 232 156 C272 156 300 184 300 232 C300 280 260 332 204 332 C196 332 188 330 180 326 C172 330 164 332 156 332 Z" fill="#a31621"/>
-
-  <!-- right cherry -->
-  <path d="M356 300 C300 300 268 248 268 200 C268 152 300 124 340 124 C360 124 376 134 388 152 C396 134 412 124 432 124 C472 124 500 152 500 200 C500 248 460 300 404 300 C396 300 388 298 380 294 C372 298 364 300 356 300 Z" fill="#a31621"/>
+  <!-- cherries -->
+  <circle cx="180" cy="330" r="82" fill="#a31621"/>
+  <circle cx="340" cy="330" r="82" fill="#a31621"/>
 </svg>
