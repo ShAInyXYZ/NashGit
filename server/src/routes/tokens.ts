@@ -11,15 +11,19 @@ tokensRouter.get('/', (_req, res) => {
   res.json(tokens);
 });
 
-tokensRouter.post('/', (req, res) => {
-  const { name } = req.body ?? {};
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
-    res.status(400).json({ error: 'Token name is required' });
-    return;
+tokensRouter.post('/', async (req, res, next) => {
+  try {
+    const { name } = req.body ?? {};
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      res.status(400).json({ error: 'Token name is required' });
+      return;
+    }
+    const created = await createToken(name.trim().slice(0, 80));
+    // Return the full token exactly once.
+    res.status(201).json(created);
+  } catch (err) {
+    next(err);
   }
-  const created = createToken(name.trim().slice(0, 80));
-  // Return the full token exactly once.
-  res.status(201).json(created);
 });
 
 tokensRouter.delete('/:id', (req, res) => {

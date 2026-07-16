@@ -9,6 +9,7 @@ import {
 } from '../git/repos.js';
 import { config } from '../config.js';
 import { requireAdmin } from '../auth/middleware.js';
+import { asyncHandler } from '../middleware/async-handler.js';
 
 export const reposRouter = Router();
 
@@ -31,26 +32,29 @@ reposRouter.get('/', (req, res) => {
   );
 });
 
-reposRouter.post('/', async (req, res) => {
-  const { name, description } = req.body ?? {};
-  if (!name || typeof name !== 'string') {
-    res.status(400).json({ error: 'Repository name is required' });
-    return;
-  }
-  if (!REPO_NAME_RE.test(name)) {
-    res.status(400).json({
-      error:
-        'Invalid name. Use letters, numbers, dot, dash, underscore; no leading dash.',
-    });
-    return;
-  }
-  try {
-    const repo = await createRepo(name, String(description ?? ''));
-    res.status(201).json({ ...repo, clone_url: cloneUrl(req, repo.name) });
-  } catch (err: any) {
-    res.status(409).json({ error: err.message });
-  }
-});
+reposRouter.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    const { name, description } = req.body ?? {};
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'Repository name is required' });
+      return;
+    }
+    if (!REPO_NAME_RE.test(name)) {
+      res.status(400).json({
+        error:
+          'Invalid name. Use letters, numbers, dot, dash, underscore; no leading dash.',
+      });
+      return;
+    }
+    try {
+      const repo = await createRepo(name, String(description ?? ''));
+      res.status(201).json({ ...repo, clone_url: cloneUrl(req, repo.name) });
+    } catch (err: any) {
+      res.status(409).json({ error: err.message });
+    }
+  })
+);
 
 reposRouter.get('/:name', (req, res) => {
   const repo = getRepo(req.params.name);
@@ -61,14 +65,17 @@ reposRouter.get('/:name', (req, res) => {
   res.json({ ...repo, clone_url: cloneUrl(req, repo.name) });
 });
 
-reposRouter.delete('/:name', async (req, res) => {
-  const ok = await deleteRepo(req.params.name);
-  if (!ok) {
-    res.status(404).json({ error: 'Repository not found' });
-    return;
-  }
-  res.json({ ok: true });
-});
+reposRouter.delete(
+  '/:name',
+  asyncHandler(async (req, res) => {
+    const ok = await deleteRepo(req.params.name);
+    if (!ok) {
+      res.status(404).json({ error: 'Repository not found' });
+      return;
+    }
+    res.json({ ok: true });
+  })
+);
 
 reposRouter.get('/:name/log', (req, res) => {
   const repo = getRepo(req.params.name);

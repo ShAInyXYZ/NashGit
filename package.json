@@ -5,7 +5,7 @@
   "description": "NashGit — self-hosted git backup for your NAS",
   "type": "module",
   "scripts": {
-    "install:all": "npm install && npm run install:server && npm run install:client",
+    "install:all": "npm run install:server && npm run install:client",
     "install:server": "cd server && npm install",
     "install:client": "cd client && npm install",
     "dev:server": "cd server && npm run dev",
@@ -17,10 +17,6 @@
     "typecheck:client": "cd client && npm run check",
     "typecheck": "npm run typecheck:server && npm run typecheck:client"
   },
-  "workspaces": [
-    "server",
-    "client"
-  ],
   "engines": {
     "node": ">=20.0.0"
   }

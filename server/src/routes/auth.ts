@@ -4,19 +4,23 @@ import { SESSION_COOKIE } from '../auth/middleware.js';
 
 export const authRouter = Router();
 
-authRouter.post('/login', (req, res) => {
-  const { username, password } = req.body ?? {};
-  if (!username || !password) {
-    res.status(400).json({ error: 'Username and password are required' });
-    return;
+authRouter.post('/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body ?? {};
+    if (!username || !password) {
+      res.status(400).json({ error: 'Username and password are required' });
+      return;
+    }
+    if (!(await verifyAdmin(username, password))) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+    const token = signSession();
+    res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req.secure));
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
   }
-  if (!verifyAdmin(username, password)) {
-    res.status(401).json({ error: 'Invalid credentials' });
-    return;
-  }
-  const token = signSession();
-  res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req.secure));
-  res.json({ ok: true });
 });
 
 authRouter.post('/logout', (req, res) => {

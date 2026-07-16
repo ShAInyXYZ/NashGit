@@ -20,25 +20,29 @@ settingsRouter.get('/', (_req, res) => {
   });
 });
 
-settingsRouter.post('/password', (req, res) => {
-  const { currentPassword, newPassword } = req.body ?? {};
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: 'Current and new passwords are required' });
-    return;
+settingsRouter.post('/password', async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: 'Current and new passwords are required' });
+      return;
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      res.status(400).json({ error: 'New password must be at least 8 characters' });
+      return;
+    }
+    const row = db
+      .prepare('SELECT password_hash FROM admin WHERE id = 1')
+      .get() as { password_hash: string };
+    if (!(await bcrypt.compare(currentPassword, row.password_hash))) {
+      res.status(401).json({ error: 'Current password is incorrect' });
+      return;
+    }
+    await changePassword(newPassword);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
   }
-  if (typeof newPassword !== 'string' || newPassword.length < 8) {
-    res.status(400).json({ error: 'New password must be at least 8 characters' });
-    return;
-  }
-  const row = db
-    .prepare('SELECT password_hash FROM admin WHERE id = 1')
-    .get() as { password_hash: string };
-  if (!bcrypt.compareSync(currentPassword, row.password_hash)) {
-    res.status(401).json({ error: 'Current password is incorrect' });
-    return;
-  }
-  changePassword(newPassword);
-  res.json({ ok: true });
 });
 
 settingsRouter.post('/username', (req, res) => {

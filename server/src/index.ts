@@ -1,9 +1,10 @@
 import express from 'express';
+import helmet from 'helmet';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
-import './db.js'; // initialises + migrates the database
+import db from './db.js'; // initialises + migrates the database
 import { bootstrapAdmin } from './auth/admin.js';
 import { cookieMiddleware } from './auth/middleware.js';
 import { loginLimiter, gitLimiter } from './middleware/rate-limit.js';
@@ -16,9 +17,25 @@ import { listRepos, totalDiskUsage } from './git/repos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-bootstrapAdmin();
+await bootstrapAdmin();
 
 const app = express();
+
+// Security headers. Content-Security-Policy is relaxed for the SvelteKit SPA;
+// tighten it further if you know your asset hashes.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+      },
+    },
+  })
+);
 
 // Parse JSON bodies for API routes. Raw request bodies for /git/* are piped
 // straight through to git-http-backend, so we must NOT parse them as JSON.
@@ -67,7 +84,16 @@ if (existsSync(clientBuildDir)) {
   });
 }
 
-app.listen(config.port, () => {
+// ---- Global error handler --------------------------------------------------
+// Catches errors from async route handlers and unexpected failures.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[nashgit] unhandled error:', err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+const server = app.listen(config.port, () => {
   const repoCount = listRepos().length;
   const size = totalDiskUsage();
   console.log(`[nashgit] listening on :${config.port}`);
@@ -77,3 +103,20 @@ app.listen(config.port, () => {
     console.log('[nashgit] tip: set NASHGIT_PUBLIC_URL so clone URLs are absolute.');
   }
 });
+
+// ---- Graceful shutdown -----------------------------------------------------
+function shutdown(signal: string) {
+  console.log(`[nashgit] ${signal} received. Closing server and database...`);
+  server.close(() => {
+    try {
+      db.close();
+      console.log('[nashgit] database closed. exiting.');
+    } catch {
+      // already closed
+    }
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

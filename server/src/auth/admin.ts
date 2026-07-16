@@ -10,7 +10,7 @@ export interface AdminClaims {
 }
 
 /** Seed the single admin row on first run, using an env password if given. */
-export function bootstrapAdmin() {
+export async function bootstrapAdmin() {
   const row = db.prepare('SELECT id FROM admin WHERE id = 1').get() as
     | { id: number }
     | undefined;
@@ -18,7 +18,7 @@ export function bootstrapAdmin() {
 
   const password =
     config.adminSeedPassword || nanoid(24); // random if none provided
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = await bcrypt.hash(password, 10);
   db.prepare(
     `INSERT INTO admin (id, username, password_hash) VALUES (1, ?, ?)`
   ).run(config.adminUsername, hash);
@@ -35,13 +35,13 @@ export function bootstrapAdmin() {
   }
 }
 
-export function verifyAdmin(username: string, password: string): boolean {
+export async function verifyAdmin(username: string, password: string): Promise<boolean> {
   const row = db
     .prepare('SELECT username, password_hash FROM admin WHERE id = 1')
     .get() as { username: string; password_hash: string } | undefined;
   if (!row) return false;
   if (row.username !== username) return false;
-  return bcrypt.compareSync(password, row.password_hash);
+  return bcrypt.compare(password, row.password_hash);
 }
 
 export function signSession(): string {
@@ -70,8 +70,8 @@ export function verifySession(token: string): AdminClaims | null {
   }
 }
 
-export function changePassword(newPassword: string): void {
-  const hash = bcrypt.hashSync(newPassword, 10);
+export async function changePassword(newPassword: string): Promise<void> {
+  const hash = await bcrypt.hash(newPassword, 10);
   db.prepare(
     `UPDATE admin SET password_hash = ?, updated_at = datetime('now') WHERE id = 1`
   ).run(hash);

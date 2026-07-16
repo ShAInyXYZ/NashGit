@@ -23,9 +23,14 @@ async function request<T>(
 		credentials: 'same-origin'
 	});
 	const text = await res.text();
-	const data = text ? JSON.parse(text) : null;
+	let data: any = null;
+	try {
+		data = text ? JSON.parse(text) : null;
+	} catch {
+		data = { raw: text };
+	}
 	if (!res.ok) {
-		throw new ApiError(res.status, data?.error || res.statusText, data);
+		throw new ApiError(res.status, data?.error || res.statusText || text || 'Request failed', data);
 	}
 	return data as T;
 }

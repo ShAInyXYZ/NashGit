@@ -37,7 +37,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
  * password is a deploy token. The username is ignored (we only have one admin).
  * Sets req.tokenRow on success; otherwise responds 401 with a challenge.
  */
-export function requireGitToken(req: Request, res: Response, next: NextFunction) {
+export async function requireGitToken(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Basic ')) {
     challenge(res);
@@ -56,7 +56,7 @@ export function requireGitToken(req: Request, res: Response, next: NextFunction)
     return;
   }
   const password = decoded.slice(colon + 1);
-  const row = verifyToken(password);
+  const row = await verifyToken(password);
   if (!row) {
     challenge(res);
     return;

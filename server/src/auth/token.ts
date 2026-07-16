@@ -21,10 +21,10 @@ export interface CreatedToken {
 }
 
 /** Create a new deploy token. The plaintext value is returned exactly once. */
-export function createToken(name: string): CreatedToken {
+export async function createToken(name: string): Promise<CreatedToken> {
   const raw = config.tokenPrefix + randomBytes(24).toString('hex');
-  const hash = bcrypt.hashSync(raw, 10);
-  const prefix = raw.slice(0, 12);
+  const hash = await bcrypt.hash(raw, 10);
+  const prefix = raw.slice(0, PREFIX_LENGTH);
   const info = db
     .prepare(
       `INSERT INTO tokens (name, token_hash, prefix) VALUES (?, ?, ?)
@@ -58,7 +58,7 @@ const PREFIX_LENGTH = 12;
  * Looks up candidates by prefix first, then bcrypt-compares only those rows
  * so the cost stays O(1) regardless of how many tokens exist.
  */
-export function verifyToken(raw: string): TokenRow | null {
+export async function verifyToken(raw: string): Promise<TokenRow | null> {
   if (!raw.startsWith(config.tokenPrefix) || raw.length < PREFIX_LENGTH) return null;
   const prefix = raw.slice(0, PREFIX_LENGTH);
   const rows = db
@@ -67,7 +67,7 @@ export function verifyToken(raw: string): TokenRow | null {
     )
     .all(prefix) as TokenRow[];
   for (const row of rows) {
-    if (bcrypt.compareSync(raw, row.token_hash)) {
+    if (await bcrypt.compare(raw, row.token_hash)) {
       return row;
     }
   }
