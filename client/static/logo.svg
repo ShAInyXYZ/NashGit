@@ -1,45 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <defs>
-    <linearGradient id="cherry" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ff4d6d"/>
-      <stop offset="55%" stop-color="#c9182b"/>
-      <stop offset="100%" stop-color="#800f18"/>
-    </linearGradient>
-    <radialGradient id="highlight" cx="0.35" cy="0.3" r="0.6">
-      <stop offset="0%" stop-color="#ff8fa3" stop-opacity="0.45"/>
-      <stop offset="100%" stop-color="#c9182b" stop-opacity="0"/>
-    </radialGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="8" result="blur"/>
-      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-    </filter>
-  </defs>
-
   <!-- stem -->
-  <path d="M256 48 C256 48 260 140 232 196 C210 238 178 268 142 292"
-        stroke="#4a7c59" stroke-width="14" stroke-linecap="round" fill="none"/>
-  <path d="M256 48 C256 48 268 130 310 178 C338 210 372 232 406 246"
-        stroke="#4a7c59" stroke-width="12" stroke-linecap="round" fill="none"/>
+  <path d="M252 80 C252 80 256 160 232 208 C212 244 184 272 152 292"
+        stroke="#a31621" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <path d="M252 80 C252 80 264 152 300 196 C326 226 358 248 392 262"
+        stroke="#a31621" stroke-width="16" stroke-linecap="round" fill="none"/>
 
   <!-- leaf -->
-  <path d="M256 48 C256 48 330 20 374 64 C398 88 400 132 388 164
-           C356 140 308 120 256 132 C264 96 262 68 256 48 Z"
-        fill="#6a9c6e"/>
-  <path d="M256 48 C256 48 330 20 374 64 C398 88 400 132 388 164"
-        stroke="#4a7c59" stroke-width="5" fill="none"/>
-  <path d="M256 92 C290 88 340 100 372 128" stroke="#4a7c59" stroke-width="3" fill="none"/>
+  <path d="M252 80 C288 56 344 56 376 88 C396 108 396 148 380 172
+           C344 152 296 140 252 148 C260 116 260 96 252 80 Z"
+        fill="#a31621"/>
 
   <!-- left cherry -->
-  <circle cx="142" cy="338" r="86" fill="url(#cherry)"/>
-  <circle cx="142" cy="338" r="86" fill="url(#highlight)"/>
-  <path d="M142 256 L142 228" stroke="#4a7c59" stroke-width="12" stroke-linecap="round"/>
-  <!-- shine -->
-  <ellipse cx="118" cy="306" rx="22" ry="14" transform="rotate(-35 118 306)" fill="#ffffff" fill-opacity="0.22"/>
+  <circle cx="152" cy="336" r="92" fill="#a31621"/>
 
   <!-- right cherry -->
-  <circle cx="406" cy="292" r="86" fill="url(#cherry)"/>
-  <circle cx="406" cy="292" r="86" fill="url(#highlight)"/>
-  <path d="M406 210 L406 182" stroke="#4a7c59" stroke-width="12" stroke-linecap="round"/>
-  <!-- shine -->
-  <ellipse cx="382" cy="260" rx="22" ry="14" transform="rotate(-35 382 260)" fill="#ffffff" fill-opacity="0.22"/>
+  <circle cx="392" cy="304" r="92" fill="#a31621"/>
 </svg>
