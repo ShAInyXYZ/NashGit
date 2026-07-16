@@ -6,6 +6,7 @@ import { config } from './config.js';
 import './db.js'; // initialises + migrates the database
 import { bootstrapAdmin } from './auth/admin.js';
 import { cookieMiddleware } from './auth/middleware.js';
+import { loginLimiter, gitLimiter } from './middleware/rate-limit.js';
 import { authRouter } from './routes/auth.js';
 import { reposRouter } from './routes/repos.js';
 import { tokensRouter } from './routes/tokens.js';
@@ -33,7 +34,7 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
 // ---- API -------------------------------------------------------------------
-app.use('/api/auth', authRouter);
+app.use('/api/auth', loginLimiter, authRouter);
 app.use('/api/repos', reposRouter);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/settings', settingsRouter);
@@ -44,7 +45,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // ---- Git smart-HTTP --------------------------------------------------------
-app.use('/git', gitRouter);
+app.use('/git', gitLimiter, gitRouter);
 
 // ---- Static client (built SvelteKit SPA) ----------------------------------
 // In production the built client lives at ../client/build (copied into the

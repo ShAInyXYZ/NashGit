@@ -90,10 +90,43 @@ export function listRepos(): RepoInfo[] {
 
 export function getRepo(name: string): RepoInfo | null {
   const row = db
-    .prepare('SELECT 1 FROM repos WHERE name = ?')
-    .get(name) as { 1: number } | undefined;
+    .prepare('SELECT name, description, created_at, last_push_at FROM repos WHERE name = ?')
+    .get(name) as
+    | { name: string; description: string; created_at: string; last_push_at: string | null }
+    | undefined;
   if (!row) return null;
-  return listRepos().find((r) => r.name === name) ?? null;
+
+  const path = repoPath(row.name);
+  let sizeBytes = 0;
+  let branches = 0;
+  let defaultBranch: string | null = null;
+  if (existsSync(path)) {
+    sizeBytes = dirSizeBytes(path);
+    try {
+      const refs = execFileSync(
+        'git',
+        ['-C', path, 'for-each-ref', '--format=%(refname:short)', 'refs/heads'],
+        { encoding: 'utf8' }
+      );
+      const list = refs
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      branches = list.length;
+      defaultBranch = list[0] ?? null;
+    } catch {
+      /* empty repo */
+    }
+  }
+  return {
+    name: row.name,
+    description: row.description,
+    created_at: row.created_at,
+    last_push_at: row.last_push_at,
+    sizeBytes,
+    branches,
+    defaultBranch,
+  };
 }
 
 export async function createRepo(

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { signSession, verifyAdmin, verifySession } from '../auth/admin.js';
+import { signSession, verifyAdmin, verifySession, sessionCookieOptions } from '../auth/admin.js';
 import { SESSION_COOKIE } from '../auth/middleware.js';
 
 export const authRouter = Router();
@@ -15,17 +15,12 @@ authRouter.post('/login', (req, res) => {
     return;
   }
   const token = signSession();
-  res.cookie(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    // secure: true, // enable behind a TLS reverse proxy
-  });
+  res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req.secure));
   res.json({ ok: true });
 });
 
 authRouter.post('/logout', (req, res) => {
-  res.clearCookie(SESSION_COOKIE);
+  res.clearCookie(SESSION_COOKIE, sessionCookieOptions(req.secure));
   res.json({ ok: true });
 });
 
@@ -37,7 +32,7 @@ authRouter.get('/me', (req, res) => {
   }
   const claims = verifySession(token);
   if (!claims) {
-    res.clearCookie(SESSION_COOKIE);
+    res.clearCookie(SESSION_COOKIE, sessionCookieOptions(req.secure));
     res.json({ authenticated: false });
     return;
   }

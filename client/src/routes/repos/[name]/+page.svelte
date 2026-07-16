@@ -37,6 +37,10 @@
 	let deleting = $state(false);
 
 	async function load() {
+		if (!name) {
+			await goto('/repos');
+			return;
+		}
 		loading = true;
 		try {
 			[repo, log] = await Promise.all([

@@ -47,6 +47,7 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_push_logs_repo ON push_logs(repo_name);
   CREATE INDEX IF NOT EXISTS idx_push_logs_time ON push_logs(pushed_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_tokens_prefix ON tokens(prefix);
 `);
 
 export default db;

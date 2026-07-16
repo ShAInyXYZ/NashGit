@@ -49,6 +49,17 @@ export function signSession(): string {
   return jwt.sign(claims, config.secret, { expiresIn: '7d' });
 }
 
+/** Cookie options for the admin session. Mark Secure when served over HTTPS. */
+export function sessionCookieOptions(secure: boolean) {
+  return {
+    httpOnly: true,
+    sameSite: 'strict' as const,
+    path: '/' as const,
+    secure,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  };
+}
+
 export function verifySession(token: string): AdminClaims | null {
   try {
     const decoded = jwt.verify(token, config.secret) as AdminClaims;

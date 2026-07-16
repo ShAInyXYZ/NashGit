@@ -11,18 +11,26 @@ server/public/
 data/
 data-docker/
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Env
+# Environment
 .env
 .env.*
 !.env.example
 
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.zcode/
+
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-
-# Logs
-*.log
