@@ -132,21 +132,23 @@ test('full backup round-trip', { timeout: 60_000 }, async () => {
   git(['push', 'origin', 'HEAD:main'], cloneDir);
 
   // Server records the push (fire-and-forget — poll until it lands)
-  let repo;
+  let repo: Awaited<ReturnType<typeof api>> | undefined;
   for (let i = 0; i < 20; i++) {
     repo = await api('/api/repos/e2e-project');
     if (repo.data.last_push_at) break;
     await new Promise((r) => setTimeout(r, 250));
   }
+  assert.ok(repo);
   assert.equal(repo.data.branches, 1);
   assert.ok(repo.data.last_push_at, 'last_push_at should be set after push');
 
-  let log;
+  let log: Awaited<ReturnType<typeof api>> | undefined;
   for (let i = 0; i < 20; i++) {
     log = await api('/api/repos/e2e-project/log');
     if (log.data.length > 0) break;
     await new Promise((r) => setTimeout(r, 250));
   }
+  assert.ok(log);
   assert.equal(log.data.length, 1);
   assert.equal(log.data[0].pushed_by, token.slice(0, 12));
 
