@@ -27,6 +27,31 @@ const CONFIG_DIR = join(homedir(), '.config', 'nashgit');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 // ---------------------------------------------------------------------------
+// Colors + cherry art (TTY only; NO_COLOR respected)
+// ---------------------------------------------------------------------------
+
+const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = (code) => (s) => (useColor ? `[${code}m${s}[0m` : s);
+const red = paint('31');
+const cherry = paint('38;5;161');
+const green = paint('32');
+const dim = paint('2');
+const bold = paint('1');
+
+const CHERRY_ART = [
+  '      \\   /',
+  '       \\ /',
+  '   .--.  V  .--.',
+  '  (    )   (    )',
+  "   `--'     `--'",
+];
+
+function printCherry() {
+  if (!useColor) return;
+  for (const line of CHERRY_ART) console.log(cherry(line));
+}
+
+// ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
@@ -57,7 +82,7 @@ function requireConfig() {
 // ---------------------------------------------------------------------------
 
 function fatal(msg) {
-  console.error(`nash: ${msg}`);
+  console.error(`${red('nash:')} ${msg}`);
   process.exit(1);
 }
 
@@ -189,9 +214,10 @@ async function cmdLogin(server) {
   cfg.tokenPrefix = created.prefix;
   saveConfig(cfg);
 
-  console.log(`\nLogged in to ${server}`);
-  console.log(`Deploy token "${tokenName}" created and stored in ${CONFIG_FILE}`);
-  console.log(`Try: nash list`);
+  printCherry();
+  console.log(`\n${green('Logged in')} to ${bold(server)}`);
+  console.log(`Deploy token "${tokenName}" created and stored in ${dim(CONFIG_FILE)}`);
+  console.log(`Try: ${cherry('nash list')}`);
 }
 
 async function cmdLogout() {
@@ -317,6 +343,11 @@ try {
     case 'push': cmdPush(); break;
     case 'pull': cmdPull(); break;
     case 'status': cmdStatus(); break;
+    case 'cherry': {
+      printCherry();
+      console.log(cherry('Have a cherry. Your backups are safe.'));
+      break;
+    }
     case undefined: case 'help': case '--help': case '-h': usage(); break;
     default: fatal(`Unknown command "${cmd}". Run: nash help`);
   }

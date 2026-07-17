@@ -6,6 +6,7 @@ import {
   getRepo,
   listRepos,
   REPO_NAME_RE,
+  verifyRepo,
 } from '../git/repos.js';
 import { config } from '../config.js';
 import { requireAdmin } from '../auth/middleware.js';
@@ -93,5 +94,18 @@ reposRouter.get(
     }
     const log = getPushLog(req.params.name);
     res.json(log);
+  })
+);
+
+// Run git fsck on the repo to verify backup integrity.
+reposRouter.post(
+  '/:name/verify',
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await verifyRepo(req.params.name);
+      res.json(result);
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
   })
 );

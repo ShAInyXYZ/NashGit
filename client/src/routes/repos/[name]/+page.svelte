@@ -3,7 +3,8 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { api, ApiError, formatBytes, relativeTime, shortHash, type Repo, type PushLogEntry } from '$lib/api';
+	import { api, ApiError, formatBytes, relativeTime, shortHash, freshness, FRESHNESS_LABEL, type Repo, type PushLogEntry } from '$lib/api';
+	import FreshnessCherry from '$lib/components/FreshnessCherry.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
@@ -26,6 +27,8 @@
 	import Loader2Icon from '@lucide/svelte/icons/loader-2';
 	import GitCommitHorizontalIcon from '@lucide/svelte/icons/git-commit-horizontal';
 	import HistoryIcon from '@lucide/svelte/icons/history';
+	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
+	import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
 
 	const name = $derived(page.params.name);
 
@@ -35,6 +38,7 @@
 	let copied = $state(false);
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
+	let verifying = $state(false);
 
 	async function load() {
 		if (!name) {
@@ -86,6 +90,28 @@
 			confirmDelete = false;
 		}
 	}
+
+	async function verify() {
+		if (!repo || verifying) return;
+		verifying = true;
+		try {
+			const result = await api.repos.verify(repo.name);
+			repo.last_check_at = result.checkedAt;
+			repo.last_check_ok = result.ok ? 1 : 0;
+			if (result.ok) {
+				toast.success('Backup integrity verified — no issues found');
+			} else {
+				toast.error('Integrity check found issues', {
+					description: result.output.slice(0, 200) || 'git fsck reported problems'
+				});
+			}
+		} catch (err) {
+			if (err instanceof ApiError) toast.error(err.message);
+			else toast.error('Verification failed');
+		} finally {
+			verifying = false;
+		}
+	}
 </script>
 
 <svelte:head><title>{name} · NashGit</title></svelte:head>
@@ -106,24 +132,45 @@
 			</a>
 			<div class="mt-4 flex flex-wrap items-start justify-between gap-4">
 				<div>
-					<h1 class="font-mono text-2xl font-semibold tracking-tight">{repo.name}</h1>
+					<h1 class="flex items-center gap-2.5 font-mono text-2xl font-semibold tracking-tight">
+						{repo.name}
+						<span title={FRESHNESS_LABEL[freshness(repo.last_push_at)]}>
+							<FreshnessCherry state={freshness(repo.last_push_at)} size={22} />
+						</span>
+					</h1>
 					{#if repo.description}
 						<p class="mt-1 text-sm text-muted-foreground">{repo.description}</p>
 					{/if}
 				</div>
-				<Button
-					variant="destructive"
-					size="sm"
-					onclick={() => (confirmDelete = true)}
-				>
-					<Trash2Icon class="size-4" />
-					Delete
-				</Button>
+				<div class="flex gap-2">
+					<Button
+						variant="secondary"
+						size="sm"
+						onclick={verify}
+						disabled={verifying}
+					>
+						{#if verifying}
+							<Loader2Icon class="size-4 animate-spin" />
+							Verifying…
+						{:else}
+							<ShieldCheckIcon class="size-4" />
+							Verify backup
+						{/if}
+					</Button>
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={() => (confirmDelete = true)}
+					>
+						<Trash2Icon class="size-4" />
+						Delete
+					</Button>
+				</div>
 			</div>
 		</div>
 
 		<!-- Stats row -->
-		<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+		<div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
 			{#each [
 				{ label: 'Branches', value: repo.branches, icon: GitBranchIcon },
 				{ label: 'Size', value: formatBytes(repo.sizeBytes), icon: HardDriveIcon },
@@ -140,6 +187,32 @@
 					</CardContent>
 				</Card>
 			{/each}
+			<Card class="border-border/60">
+				<CardContent class="p-4">
+					<div class="flex items-center gap-2 text-xs text-muted-foreground">
+						{#if repo.last_check_ok === 1}
+							<ShieldCheckIcon class="size-3.5 text-green-500" />
+						{:else if repo.last_check_ok === 0}
+							<ShieldAlertIcon class="size-3.5 text-destructive" />
+						{:else}
+							<ShieldCheckIcon class="size-3.5" />
+						{/if}
+						Integrity
+					</div>
+					<p class="mt-1.5 text-sm font-medium {repo.last_check_ok === 0 ? 'text-destructive' : repo.last_check_ok === 1 ? 'text-green-500' : ''}">
+						{#if repo.last_check_ok === 1}
+							Healthy
+						{:else if repo.last_check_ok === 0}
+							Issues found
+						{:else}
+							Not checked
+						{/if}
+					</p>
+					{#if repo.last_check_at}
+						<p class="mt-0.5 text-xs text-muted-foreground">{relativeTime(repo.last_check_at)}</p>
+					{/if}
+				</CardContent>
+			</Card>
 		</div>
 
 		<!-- Clone URL -->

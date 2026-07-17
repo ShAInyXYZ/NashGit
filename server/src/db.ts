@@ -50,4 +50,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_tokens_prefix ON tokens(prefix);
 `);
 
+// ---- Migrations ------------------------------------------------------------
+// Add integrity-check columns to repos if they're missing (existing DBs).
+{
+  const cols = db.prepare(`PRAGMA table_info(repos)`).all() as { name: string }[];
+  const names = new Set(cols.map((c) => c.name));
+  if (!names.has('last_check_at')) {
+    db.exec(`ALTER TABLE repos ADD COLUMN last_check_at TEXT`);
+  }
+  if (!names.has('last_check_ok')) {
+    db.exec(`ALTER TABLE repos ADD COLUMN last_check_ok INTEGER`);
+  }
+}
+
 export default db;

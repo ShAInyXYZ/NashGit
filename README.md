@@ -51,6 +51,10 @@ like any other folder.
 
 - **Push-only git remote** — clone, push, and pull over HTTP smart-transport.
 - **Deploy tokens** — revocable, bcrypt-hashed secrets used as the git password.
+- **Backup integrity checks** — one-click `git fsck` verification per repo, with a
+  Healthy/Issues status on the dashboard. A backup you haven't verified isn't a backup.
+- **Freshness cherries** — each repo shows how alive its backup is at a glance:
+  fresh, ripe, getting stale, or withered.
 - **Single-container deployment** — API, git transport, and web UI all on port `3000`.
 - **SvelteKit + shadcn-svelte UI** — dark by default, with a cherry accent.
 - **SQLite metadata** — repository list, token registry, and push history in one file.

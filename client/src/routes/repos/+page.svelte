@@ -1,8 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { api, formatBytes, relativeTime, type Repo } from '$lib/api';
+	import {
+		api,
+		formatBytes,
+		relativeTime,
+		freshness,
+		FRESHNESS_LABEL,
+		type Repo
+	} from '$lib/api';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import FreshnessCherry from '$lib/components/FreshnessCherry.svelte';
 	import {
 		Table,
 		TableBody,
@@ -120,7 +128,13 @@
 							</TableCell>
 							<TableCell class="text-sm text-muted-foreground">{formatBytes(repo.sizeBytes)}</TableCell>
 							<TableCell>
-								<Badge variant="secondary" class="text-xs">{relativeTime(repo.last_push_at)}</Badge>
+								<span
+									class="flex items-center gap-1.5"
+									title="{FRESHNESS_LABEL[freshness(repo.last_push_at)]}"
+								>
+									<FreshnessCherry state={freshness(repo.last_push_at)} size={15} />
+									<Badge variant="secondary" class="text-xs">{relativeTime(repo.last_push_at)}</Badge>
+								</span>
 							</TableCell>
 							<TableCell class="text-right">
 								<code class="hidden font-mono text-xs text-muted-foreground lg:inline-block">

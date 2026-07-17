@@ -20,6 +20,8 @@ export interface RepoInfo {
   description: string;
   created_at: string;
   last_push_at: string | null;
+  last_check_at: string | null;
+  last_check_ok: number | null;
   sizeBytes: number;
   branches: number;
   defaultBranch: string | null;
@@ -79,11 +81,15 @@ interface RepoRow {
   description: string;
   created_at: string;
   last_push_at: string | null;
+  last_check_at: string | null;
+  last_check_ok: number | null;
 }
 
 export async function listRepos(): Promise<RepoInfo[]> {
   const rows = db
-    .prepare('SELECT name, description, created_at, last_push_at FROM repos ORDER BY name')
+    .prepare(
+      'SELECT name, description, created_at, last_push_at, last_check_at, last_check_ok FROM repos ORDER BY name'
+    )
     .all() as RepoRow[];
 
   return Promise.all(
@@ -92,6 +98,8 @@ export async function listRepos(): Promise<RepoInfo[]> {
       description: r.description,
       created_at: r.created_at,
       last_push_at: r.last_push_at,
+      last_check_at: r.last_check_at,
+      last_check_ok: r.last_check_ok,
       ...(await repoStats(repoPath(r.name))),
     }))
   );
@@ -99,7 +107,9 @@ export async function listRepos(): Promise<RepoInfo[]> {
 
 export async function getRepo(name: string): Promise<RepoInfo | null> {
   const row = db
-    .prepare('SELECT name, description, created_at, last_push_at FROM repos WHERE name = ?')
+    .prepare(
+      'SELECT name, description, created_at, last_push_at, last_check_at, last_check_ok FROM repos WHERE name = ?'
+    )
     .get(name) as RepoRow | undefined;
   if (!row) return null;
 
@@ -108,6 +118,8 @@ export async function getRepo(name: string): Promise<RepoInfo | null> {
     description: row.description,
     created_at: row.created_at,
     last_push_at: row.last_push_at,
+    last_check_at: row.last_check_at,
+    last_check_ok: row.last_check_ok,
     ...(await repoStats(repoPath(row.name))),
   };
 }
@@ -269,4 +281,49 @@ export async function totalDiskUsage(): Promise<number> {
   let total = 0;
   for (const r of await listRepos()) total += r.sizeBytes;
   return total;
+}
+
+export interface VerifyResult {
+  ok: boolean;
+  output: string;
+  checkedAt: string;
+}
+
+/**
+ * Run `git fsck` on a repo to verify backup integrity. Stores the result on
+ * the repo row (last_check_at / last_check_ok) and returns it.
+ */
+export async function verifyRepo(name: string): Promise<VerifyResult> {
+  const row = db.prepare('SELECT 1 FROM repos WHERE name = ?').get(name);
+  if (!row) throw new Error('Repository not found');
+
+  const path = repoPath(name);
+  let ok = true;
+  let output = '';
+  try {
+    // --no-dangling: unpushed stashes/reflog entries are normal, not errors.
+    const { stdout, stderr } = await execFileP(
+      'git',
+      ['-C', path, 'fsck', '--no-dangling', '--strict'],
+      { maxBuffer: 10 * 1024 * 1024 }
+    );
+    output = [stdout, stderr].filter(Boolean).join('\n').trim();
+    // fsck prints notices on stderr even on success; empty output = clean.
+    ok = output.length === 0;
+  } catch (err: any) {
+    ok = false;
+    output = [err.stdout, err.stderr, err.message]
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
+  const checkedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  db.prepare('UPDATE repos SET last_check_at = ?, last_check_ok = ? WHERE name = ?').run(
+    checkedAt,
+    ok ? 1 : 0,
+    name
+  );
+
+  return { ok, output, checkedAt };
 }

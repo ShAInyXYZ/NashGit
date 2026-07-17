@@ -42,10 +42,18 @@ export interface Repo {
 	description: string;
 	created_at: string;
 	last_push_at: string | null;
+	last_check_at: string | null;
+	last_check_ok: number | null;
 	sizeBytes: number;
 	branches: number;
 	defaultBranch: string | null;
 	clone_url: string;
+}
+
+export interface VerifyResult {
+	ok: boolean;
+	output: string;
+	checkedAt: string;
 }
 
 export interface Token {
@@ -93,7 +101,9 @@ export const api = {
 		remove: (name: string) =>
 			request<{ ok: true }>(`/api/repos/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 		log: (name: string) =>
-			request<PushLogEntry[]>(`/api/repos/${encodeURIComponent(name)}/log`)
+			request<PushLogEntry[]>(`/api/repos/${encodeURIComponent(name)}/log`),
+		verify: (name: string) =>
+			request<VerifyResult>(`/api/repos/${encodeURIComponent(name)}/verify`, { method: 'POST' })
 	},
 	tokens: {
 		list: () => request<Token[]>('/api/tokens'),
@@ -143,3 +153,29 @@ export function shortHash(hash: string | null): string {
 	if (!hash) return '—';
 	return hash.slice(0, 7);
 }
+
+// ---- Freshness ---------------------------------------------------------------
+
+export type Freshness = 'fresh' | 'ripe' | 'stale' | 'withered' | 'unknown';
+
+/**
+ * How alive is this backup? Based on time since last push.
+ * fresh < 1 day · ripe < 7 days · stale < 30 days · withered beyond that.
+ */
+export function freshness(iso: string | null): Freshness {
+	if (!iso) return 'unknown';
+	const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+	const days = (Date.now() - d.getTime()) / 86_400_000;
+	if (days < 1) return 'fresh';
+	if (days < 7) return 'ripe';
+	if (days < 30) return 'stale';
+	return 'withered';
+}
+
+export const FRESHNESS_LABEL: Record<Freshness, string> = {
+	fresh: 'Fresh',
+	ripe: 'Ripe',
+	stale: 'Getting stale',
+	withered: 'Withered — push soon',
+	unknown: 'Never pushed'
+};
