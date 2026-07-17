@@ -40,6 +40,11 @@ reverse proxy required to start, and no monthly subscription. Your bare reposito
 their metadata live in a single `./data` directory that you can back up, snapshot, or sync
 like any other folder.
 
+<div align="center">
+<br/>
+<img src="docs/assets/screenshots/dashboard.png" alt="NashGit dashboard" width="85%" />
+</div>
+
 ---
 
 ## Features
@@ -50,6 +55,18 @@ like any other folder.
 - **SvelteKit + shadcn-svelte UI** — dark by default, with a cherry accent.
 - **SQLite metadata** — repository list, token registry, and push history in one file.
 - **Lightweight** — Node 20+, Express, and the system `git http-backend` for robust transport.
+
+---
+
+## Screenshots
+
+<div align="center">
+
+<img src="docs/assets/screenshots/repos.png" alt="Repository list" width="48%" /> <img src="docs/assets/screenshots/repo-detail.png" alt="Repository detail with clone URL and push history" width="48%" />
+
+<img src="docs/assets/screenshots/tokens.png" alt="Deploy token management" width="48%" /> <img src="docs/assets/screenshots/login.png" alt="Admin login" width="48%" />
+
+</div>
 
 ---
 
