@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/auth/token.test.ts src/git/repos.test.ts src/e2e.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

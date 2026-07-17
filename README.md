@@ -76,23 +76,26 @@ like any other folder.
 
 ## Quick Start
 
-The recommended way to run NashGit is with Docker Compose.
+The recommended way to run NashGit is with Docker Compose and the prebuilt image.
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/ShAInyXYZ/NashGit.git
-cd NashGit
+# 1. Grab the compose file + env template (no need to clone the whole repo)
+curl -O https://raw.githubusercontent.com/ShAInyXYZ/NashGit/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/ShAInyXYZ/NashGit/main/.env.example
+mv .env.example .env
 
-# 2. Configure
-cp .env.example .env
-# Edit .env and set NASHGIT_ADMIN_PASSWORD and NASHGIT_SECRET
+# 2. Configure — set NASHGIT_ADMIN_PASSWORD and NASHGIT_SECRET
+$EDITOR .env
 
-# 3. Launch
-docker compose up -d --build
+# 3. Launch (pulls ghcr.io/shainyxyz/nashgit:latest)
+docker compose up -d
 
 # 4. Open the UI
 # http://<nas-ip>:3000
 ```
+
+Prefer building from source? Clone the repo and uncomment `build: .` in
+`docker-compose.yml`, then `docker compose up -d --build`.
 
 On first start, NashGit seeds an admin account from `NASHGIT_ADMIN_PASSWORD`. If you leave
 that variable blank, a random password is generated and printed once in the logs:

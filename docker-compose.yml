@@ -6,8 +6,10 @@
 
 services:
   nashgit:
-    build: .
-    image: nashgit:latest
+    # Prebuilt image (recommended — no local build needed).
+    # To build from source instead, comment the image line and uncomment build.
+    image: ghcr.io/shainyxyz/nashgit:latest
+    # build: .
     container_name: nashgit
     restart: unless-stopped
     ports:

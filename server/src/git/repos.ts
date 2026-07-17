@@ -308,8 +308,9 @@ export async function verifyRepo(name: string): Promise<VerifyResult> {
       { maxBuffer: 10 * 1024 * 1024 }
     );
     output = [stdout, stderr].filter(Boolean).join('\n').trim();
-    // fsck prints notices on stderr even on success; empty output = clean.
-    ok = output.length === 0;
+    // fsck prints "notice:" lines (e.g. unborn branch in an empty repo) even on
+    // success — only error:/fatal: lines mean real corruption.
+    ok = !/^(error|fatal):/im.test(output);
   } catch (err: any) {
     ok = false;
     output = [err.stdout, err.stderr, err.message]
