@@ -1,0 +1,13 @@
+{
+  "name": "nashgit-cli",
+  "version": "1.0.0",
+  "description": "nash — the NashGit CLI. One-word clone/push/pull against your NAS git remote.",
+  "type": "module",
+  "bin": {
+    "nash": "./nash.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}

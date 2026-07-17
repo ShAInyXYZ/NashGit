@@ -20,7 +20,7 @@ stays on your network, on your storage, under your control.
 
 <br/>
 
-**[What It Is](#-what-it-is)** · **[Features](#-features)** · **[Quick Start](#-quick-start)** · **[Back Up a Project](#-back-up-a-project)** · **[Remote Access](#-remote-access)** · **[Security](#-security)** · **[Architecture](#-architecture)** · **[Development](#-development)** · **[License](#-license)**
+**[What It Is](#-what-it-is)** · **[Features](#-features)** · **[Quick Start](#-quick-start)** · **[Back Up a Project](#-back-up-a-project)** · **[Remote Access](#-remote-access)** · **[Security](#-security)** · **[Architecture](#-architecture)** · **[CLI](#-the-nash-cli)** · **[Development](#-development)** · **[License](#-license)**
 
 </div>
 
@@ -105,6 +105,33 @@ docker compose logs nashgit | grep "Generated admin password"
 
 ## Back Up a Project
 
+### The easy way — the `nash` CLI
+
+The `cli/` directory ships `nash`, a tiny zero-dependency Node CLI that wires
+auth for you. Log in once; after that, everything is one word:
+
+```bash
+# One-time install (from the repo root)
+npm install -g ./cli
+
+# One-time login — creates a deploy token for this machine automatically
+nash login http://<nas-ip>:3000
+
+# Daily flow
+nash create my-project     # creates the repo on the NAS + adds the "nas" remote
+nash push                  # push the current branch
+nash pull                  # pull the current branch
+nash clone dotfiles        # clone a repo from the NAS
+nash list                  # see what's on the server
+```
+
+`nash login` stores a machine-specific deploy token in
+`~/.config/nashgit/config.json` (mode `0600`) and embeds it in the remotes it
+creates — git never asks for a password again. Plain git keeps working exactly
+as before; `nash` is sugar, not a replacement.
+
+### The manual way — plain git
+
 Once you have created a repository and a deploy token in the web UI:
 
 ```bash
@@ -177,16 +204,45 @@ reverse-proxy alternatives. For a step-by-step hardened setup, follow
 |---|---|---|
 | **Server** | `server/` | Express API, auth, database, git transport orchestration |
 | **Client** | `client/` | SvelteKit 2 static SPA served by Express |
+| **CLI** | `cli/` | Zero-dependency Node wrapper around git (`nash …`) |
 | **Database** | `better-sqlite3` | Metadata and push logs, WAL mode enabled |
 | **Git transport** | `git http-backend` | Battle-tested smart-HTTP over CGI |
 
 ### Authentication
 
 - **Admin session** — username and password exchange for an `httpOnly` JWT cookie, valid for
-  seven days. Used by the web UI.
+  seven days. Used by the web UI and the CLI's `nash login`.
 - **Deploy tokens** — secrets with an `ngt_` prefix, bcrypt-hashed at rest, shown once on
   creation. Used as the password for git Basic auth. The username is ignored. Revocable from
   the UI.
+
+---
+
+## The nash CLI
+
+`nash` is a small Node script (no dependencies, Node 20+) that makes your NAS
+feel like a hosted remote. One login per machine, then plain words:
+
+```bash
+npm install -g ./cli          # installs the `nash` command
+
+nash login http://nas:3000    # admin credentials, once per machine
+nash list                     # repos on the server, sizes, last push
+nash create my-app            # create repo on server + wire "nas" remote
+nash push                     # git push nas <current-branch>
+nash pull                     # git pull nas <current-branch>
+nash clone dotfiles           # clone with auth embedded
+nash logout                   # remove local credentials
+```
+
+What `nash login` does under the hood: authenticates against `/api/auth/login`,
+creates a deploy token named `nash-cli-<hostname>` on the server, and stores it
+in `~/.config/nashgit/config.json` (mode `0600`). Remotes created by `nash
+create` / `nash clone` embed that token, so git operations never prompt.
+Revoking the token in the UI instantly locks that machine out.
+
+Plain git commands against the same server keep working — see
+[Back Up a Project](#back-up-a-project).
 
 ---
 
