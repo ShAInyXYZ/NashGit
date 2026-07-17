@@ -16,10 +16,11 @@ stays on your network, on your storage, under your control.
 ![SvelteKit](https://img.shields.io/badge/SvelteKit-2-2b2c28?style=for-the-badge&logo=svelte&logoColor=ff4d6d)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-2b2c28?style=for-the-badge&logo=typescript&logoColor=ff4d6d)
 [![License](https://img.shields.io/badge/License-MIT-2b2c28?style=for-the-badge)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/ShAInyXYZ/NashGit/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/ShAInyXYZ/NashGit/actions/workflows/ci.yml)
 
 <br/>
 
-**[What It Is](#-what-it-is)** · **[Features](#-features)** · **[Quick Start](#-quick-start)** · **[Back Up a Project](#-back-up-a-project)** · **[Security](#-security)** · **[Architecture](#-architecture)** · **[Development](#-development)** · **[License](#-license)**
+**[What It Is](#-what-it-is)** · **[Features](#-features)** · **[Quick Start](#-quick-start)** · **[Back Up a Project](#-back-up-a-project)** · **[Remote Access](#-remote-access)** · **[Security](#-security)** · **[Architecture](#-architecture)** · **[Development](#-development)** · **[License](#-license)**
 
 </div>
 
@@ -104,6 +105,21 @@ To restore or clone elsewhere:
 git clone http://<nas-ip>:3000/git/my-project.git
 # Use the same token as the password.
 ```
+
+---
+
+## Remote Access
+
+Want to push and pull when you're away from home? Don't forward a port — put
+NashGit on a private overlay network instead. The recommended setup is
+[Tailscale](https://tailscale.com) on the NAS and your devices: your tailnet
+name (e.g. `http://nas:3000`) works from anywhere, encrypted, with no router
+changes and no public exposure. NashGit needs zero configuration changes — the
+same admin login and deploy tokens cover you.
+
+See [`docs/REMOTE_ACCESS.md`](docs/REMOTE_ACCESS.md) for the full guide,
+including HTTPS inside the tailnet, Tailscale Funnel for public access, and
+reverse-proxy alternatives.
 
 ---
 

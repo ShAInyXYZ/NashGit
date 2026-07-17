@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -32,100 +32,82 @@ async function git(repo: string, args: string[]): Promise<string> {
   return stdout.toString().trim();
 }
 
-/** Synchronous directory size in bytes via `du`. */
-function dirSizeBytes(path: string): number {
+/** Directory size in bytes via `du` (async — never block the event loop). */
+async function dirSizeBytes(path: string): Promise<number> {
   try {
-    const out = execFileSync('du', ['-sb', path], { encoding: 'utf8' });
-    return Number(out.split(/\s+/)[0]) || 0;
+    const { stdout } = await execFileP('du', ['-sb', path]);
+    return Number(stdout.toString().trim().split(/\s+/)[0]) || 0;
   } catch {
     return 0;
   }
 }
 
-export function listRepos(): RepoInfo[] {
+/** Disk usage + branch stats for one repo on disk. */
+async function repoStats(path: string): Promise<{
+  sizeBytes: number;
+  branches: number;
+  defaultBranch: string | null;
+}> {
+  if (!existsSync(path)) {
+    return { sizeBytes: 0, branches: 0, defaultBranch: null };
+  }
+  const sizeBytes = await dirSizeBytes(path);
+  let branches = 0;
+  let defaultBranch: string | null = null;
+  // branch count + default branch are best-effort; ignore errors (empty repo)
+  try {
+    const refs = await git(path, [
+      'for-each-ref',
+      '--format=%(refname:short)',
+      'refs/heads',
+    ]);
+    const list = refs
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    branches = list.length;
+    defaultBranch = list[0] ?? null;
+  } catch {
+    /* empty repo */
+  }
+  return { sizeBytes, branches, defaultBranch };
+}
+
+interface RepoRow {
+  name: string;
+  description: string;
+  created_at: string;
+  last_push_at: string | null;
+}
+
+export async function listRepos(): Promise<RepoInfo[]> {
   const rows = db
     .prepare('SELECT name, description, created_at, last_push_at FROM repos ORDER BY name')
-    .all() as {
-    name: string;
-    description: string;
-    created_at: string;
-    last_push_at: string | null;
-  }[];
+    .all() as RepoRow[];
 
-  return rows.map((r) => {
-    const path = repoPath(r.name);
-    let sizeBytes = 0;
-    let branches = 0;
-    let defaultBranch: string | null = null;
-    if (existsSync(path)) {
-      sizeBytes = dirSizeBytes(path);
-      // branch count + default branch are best-effort; ignore errors (empty repo)
-      try {
-        const refs = execFileSync(
-          'git',
-          ['-C', path, 'for-each-ref', '--format=%(refname:short)', 'refs/heads'],
-          { encoding: 'utf8' }
-        );
-        const list = refs
-          .split('\n')
-          .map((s) => s.trim())
-          .filter(Boolean);
-        branches = list.length;
-        defaultBranch = list[0] ?? null;
-      } catch {
-        /* empty repo */
-      }
-    }
-    return {
+  return Promise.all(
+    rows.map(async (r) => ({
       name: r.name,
       description: r.description,
       created_at: r.created_at,
       last_push_at: r.last_push_at,
-      sizeBytes,
-      branches,
-      defaultBranch,
-    };
-  });
+      ...(await repoStats(repoPath(r.name))),
+    }))
+  );
 }
 
-export function getRepo(name: string): RepoInfo | null {
+export async function getRepo(name: string): Promise<RepoInfo | null> {
   const row = db
     .prepare('SELECT name, description, created_at, last_push_at FROM repos WHERE name = ?')
-    .get(name) as
-    | { name: string; description: string; created_at: string; last_push_at: string | null }
-    | undefined;
+    .get(name) as RepoRow | undefined;
   if (!row) return null;
 
-  const path = repoPath(row.name);
-  let sizeBytes = 0;
-  let branches = 0;
-  let defaultBranch: string | null = null;
-  if (existsSync(path)) {
-    sizeBytes = dirSizeBytes(path);
-    try {
-      const refs = execFileSync(
-        'git',
-        ['-C', path, 'for-each-ref', '--format=%(refname:short)', 'refs/heads'],
-        { encoding: 'utf8' }
-      );
-      const list = refs
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      branches = list.length;
-      defaultBranch = list[0] ?? null;
-    } catch {
-      /* empty repo */
-    }
-  }
   return {
     name: row.name,
     description: row.description,
     created_at: row.created_at,
     last_push_at: row.last_push_at,
-    sizeBytes,
-    branches,
-    defaultBranch,
+    ...(await repoStats(repoPath(row.name))),
   };
 }
 
@@ -166,7 +148,7 @@ export async function createRepo(
     description || ''
   );
 
-  const created = getRepo(name);
+  const created = await getRepo(name);
   if (!created) throw new Error('Failed to create repository record');
   return created;
 }
@@ -281,8 +263,8 @@ export async function detectRefChange(
   }
 }
 
-export function totalDiskUsage(): number {
+export async function totalDiskUsage(): Promise<number> {
   let total = 0;
-  for (const r of listRepos()) total += r.sizeBytes;
+  for (const r of await listRepos()) total += r.sizeBytes;
   return total;
 }

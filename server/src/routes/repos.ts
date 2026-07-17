@@ -22,15 +22,18 @@ function cloneUrl(req: any, name: string): string {
   return `${base.replace(/\/$/, '')}/git/${name}.git`;
 }
 
-reposRouter.get('/', (req, res) => {
-  const repos = listRepos();
-  res.json(
-    repos.map((r) => ({
-      ...r,
-      clone_url: cloneUrl(req, r.name),
-    }))
-  );
-});
+reposRouter.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const repos = await listRepos();
+    res.json(
+      repos.map((r) => ({
+        ...r,
+        clone_url: cloneUrl(req, r.name),
+      }))
+    );
+  })
+);
 
 reposRouter.post(
   '/',
@@ -56,14 +59,17 @@ reposRouter.post(
   })
 );
 
-reposRouter.get('/:name', (req, res) => {
-  const repo = getRepo(req.params.name);
-  if (!repo) {
-    res.status(404).json({ error: 'Repository not found' });
-    return;
-  }
-  res.json({ ...repo, clone_url: cloneUrl(req, repo.name) });
-});
+reposRouter.get(
+  '/:name',
+  asyncHandler(async (req, res) => {
+    const repo = await getRepo(req.params.name);
+    if (!repo) {
+      res.status(404).json({ error: 'Repository not found' });
+      return;
+    }
+    res.json({ ...repo, clone_url: cloneUrl(req, repo.name) });
+  })
+);
 
 reposRouter.delete(
   '/:name',
@@ -77,12 +83,15 @@ reposRouter.delete(
   })
 );
 
-reposRouter.get('/:name/log', (req, res) => {
-  const repo = getRepo(req.params.name);
-  if (!repo) {
-    res.status(404).json({ error: 'Repository not found' });
-    return;
-  }
-  const log = getPushLog(req.params.name);
-  res.json(log);
-});
+reposRouter.get(
+  '/:name/log',
+  asyncHandler(async (req, res) => {
+    const repo = await getRepo(req.params.name);
+    if (!repo) {
+      res.status(404).json({ error: 'Repository not found' });
+      return;
+    }
+    const log = getPushLog(req.params.name);
+    res.json(log);
+  })
+);

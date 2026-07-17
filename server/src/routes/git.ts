@@ -27,20 +27,19 @@ gitRouter.use((req, res, next) => {
   res.on('finish', () => {
     if (res.statusCode >= 400) return; // push failed, nothing to record
     if (!repoName) return;
-    const exists = getRepo(repoName);
-    if (!exists) return;
     // Fire-and-forget — don't block the response.
-    detectRefChange(repoName)
-      .then((change) => {
-        recordPush({
-          repoName,
-          fromHash: change?.from ?? null,
-          toHash: change?.to ?? null,
-          pushedBy: req.tokenRow?.prefix ?? 'unknown',
-          ip: req.ip ?? null,
-        });
-      })
-      .catch((err) => console.error('[nashgit] failed to record push:', err));
+    (async () => {
+      const exists = await getRepo(repoName);
+      if (!exists) return;
+      const change = await detectRefChange(repoName);
+      recordPush({
+        repoName,
+        fromHash: change?.from ?? null,
+        toHash: change?.to ?? null,
+        pushedBy: req.tokenRow?.prefix ?? 'unknown',
+        ip: req.ip ?? null,
+      });
+    })().catch((err) => console.error('[nashgit] failed to record push:', err));
   });
 
   next();

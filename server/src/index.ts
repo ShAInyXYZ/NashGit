@@ -94,14 +94,17 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 const server = app.listen(config.port, () => {
-  const repoCount = listRepos().length;
-  const size = totalDiskUsage();
   console.log(`[nashgit] listening on :${config.port}`);
   console.log(`[nashgit] data dir: ${config.dataDir}`);
-  console.log(`[nashgit] repos: ${repoCount} (${(size / 1024 / 1024).toFixed(2)} MB)`);
   if (!config.publicUrl) {
     console.log('[nashgit] tip: set NASHGIT_PUBLIC_URL so clone URLs are absolute.');
   }
+  // Startup stats are informational — log failures but never crash boot.
+  (async () => {
+    const repos = await listRepos();
+    const size = await totalDiskUsage();
+    console.log(`[nashgit] repos: ${repos.length} (${(size / 1024 / 1024).toFixed(2)} MB)`);
+  })().catch((err) => console.error('[nashgit] failed to compute startup stats:', err));
 });
 
 // ---- Graceful shutdown -----------------------------------------------------
