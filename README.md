@@ -318,7 +318,8 @@ All configuration is via environment variables. See `.env.example` for the full 
 
 NashGit is open source under the **MIT License**. See [`LICENSE`](LICENSE) for the full text.
 
-**Copyright © 2026 ShAInyXYZ** ([@ShAInyXYZ](https://github.com/ShAInyXYZ)).
+**Copyright © 2026 Mounir Belahbib** ([@ShAInyXYZ](https://github.com/ShAInyXYZ)).
+Commercially operated by **Shiny-Studio OÜ** ([Estonian reg. 16817281](https://ariregister.rik.ee/eng/company/16817281/Shiny-Studio-O%C3%9C), Tallinn).
 
 <div align="center">
 <br/>
