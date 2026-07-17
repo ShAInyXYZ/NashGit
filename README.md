@@ -20,7 +20,7 @@ stays on your network, on your storage, under your control.
 
 <br/>
 
-**[What It Is](#-what-it-is)** · **[Features](#-features)** · **[Quick Start](#-quick-start)** · **[Back Up a Project](#-back-up-a-project)** · **[Remote Access](#-remote-access)** · **[Security](#-security)** · **[Architecture](#-architecture)** · **[CLI](#-the-nash-cli)** · **[Development](#-development)** · **[License](#-license)**
+**[What It Is](#what-it-is)** · **[Features](#features)** · **[Quick Start](#quick-start)** · **[Back Up a Project](#back-up-a-project)** · **[Remote Access](#remote-access)** · **[Security](#security)** · **[Architecture](#architecture)** · **[CLI](#the-nash-cli)** · **[AI Agents](#using-nashgit-with-ai-agents)** · **[Development](#development)** · **[License](#license)**
 
 </div>
 
@@ -243,6 +243,27 @@ Revoking the token in the UI instantly locks that machine out.
 
 Plain git commands against the same server keep working — see
 [Back Up a Project](#back-up-a-project).
+
+### Using NashGit with AI agents
+
+AI coding agents know git, not `nash`. The repo ships an **agent skill** at
+[`skills/nashgit/SKILL.md`](skills/nashgit/SKILL.md) that teaches them the CLI:
+how to check login state, back up a project, clone, push, pull, and recover
+from common errors — without ever asking for your admin password.
+
+Install it into your agentic environment:
+
+```bash
+# Claude Code / Kimi Code — user scope (all projects)
+cp -r skills/nashgit ~/.claude/skills/
+
+# or project scope
+mkdir -p .claude/skills && cp -r skills/nashgit .claude/skills/
+```
+
+For other agents, point them at the `SKILL.md` file or paste it into your
+`AGENTS.md` / `.cursorrules`. Once loaded, your agent will reach for
+`nash push` and `nash clone` on its own. See [`skills/README.md`](skills/README.md).
 
 ---
 
