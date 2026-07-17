@@ -4,15 +4,19 @@
 # Build artifacts
 client/build
 server/dist
+server/public
 **/.svelte-kit
 
 # Data (never bake into the image)
 data
+data-docker
 **/data
 
-# Git
+# VCS / CI
 .git
 .gitignore
+.github
+.zcode
 
 # Editor / OS
 .DS_Store
@@ -21,7 +25,10 @@ data
 .env
 .env.*
 !.env.example
+.vscode
+.idea
 
-# Docs
+# Docs (not needed in the runtime image)
+docs
 README.md
 LICENSE

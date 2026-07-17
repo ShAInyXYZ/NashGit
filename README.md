@@ -119,7 +119,8 @@ same admin login and deploy tokens cover you.
 
 See [`docs/REMOTE_ACCESS.md`](docs/REMOTE_ACCESS.md) for the full guide,
 including HTTPS inside the tailnet, Tailscale Funnel for public access, and
-reverse-proxy alternatives.
+reverse-proxy alternatives. For a step-by-step hardened setup, follow
+[`docs/TAILSCALE.md`](docs/TAILSCALE.md).
 
 ---
 

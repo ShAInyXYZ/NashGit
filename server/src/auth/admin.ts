@@ -45,7 +45,12 @@ export async function verifyAdmin(username: string, password: string): Promise<b
 }
 
 export function signSession(): string {
-  const claims: AdminClaims = { sub: 'admin', username: config.adminUsername };
+  // Read the username from the DB, not config — it may have been renamed
+  // in Settings after boot.
+  const row = db
+    .prepare('SELECT username FROM admin WHERE id = 1')
+    .get() as { username: string };
+  const claims: AdminClaims = { sub: 'admin', username: row.username };
   return jwt.sign(claims, config.secret, { expiresIn: '7d' });
 }
 

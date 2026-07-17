@@ -14,6 +14,9 @@ configuration changes at all.
 
 ## Option A — Tailscale (recommended)
 
+> For a complete walkthrough with hardening (HTTPS, ACLs, key expiry, token
+> rotation), see [`TAILSCALE.md`](TAILSCALE.md). This section is the short version.
+
 ### 1. Install Tailscale on the NAS
 
 - **Synology / QNAP / TrueNAS / Unraid**: install the Tailscale package from the

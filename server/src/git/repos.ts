@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import db from '../db.js';
@@ -157,7 +158,8 @@ export async function deleteRepo(name: string): Promise<boolean> {
   const row = db.prepare('SELECT name FROM repos WHERE name = ?').get(name);
   if (!row) return false;
   const path = repoPath(name);
-  if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+  // Async rm — a large repo must not block the event loop.
+  if (existsSync(path)) await rm(path, { recursive: true, force: true });
   db.prepare('DELETE FROM repos WHERE name = ?').run(name);
   return true;
 }
