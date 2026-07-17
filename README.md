@@ -316,10 +316,10 @@ All configuration is via environment variables. See `.env.example` for the full 
 
 ## License
 
-NashGit is open source under the **MIT License**. See [`LICENSE`](LICENSE) for the full text.
+NashGit is open source under the **MIT License** — free for personal and
+commercial use, forever. See [`LICENSE`](LICENSE) for the full text.
 
-**Copyright © 2026 Mounir Belahbib** ([@ShAInyXYZ](https://github.com/ShAInyXYZ)).
-Commercially operated by **Shiny-Studio OÜ** ([Estonian reg. 16817281](https://ariregister.rik.ee/eng/company/16817281/Shiny-Studio-O%C3%9C), Tallinn).
+**Copyright © 2026 Mounir Belahbib** ([@ShAInyXYZ](https://github.com/ShAInyXYZ)) · **Shiny-Studio OÜ** ([Estonian reg. 16817281](https://ariregister.rik.ee/eng/company/16817281/Shiny-Studio-O%C3%9C), Tallinn).
 
 <div align="center">
 <br/>
