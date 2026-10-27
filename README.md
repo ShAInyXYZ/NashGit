@@ -125,7 +125,8 @@ It is printed only when the account is first created; protect those logs.
 
 Changing the seed password in `.env` does not change an existing account. Use
 **Settings** after signing in. A password or username change invalidates existing
-admin sessions.
+admin sessions. Signing out of the web UI also invalidates all admin sessions,
+including CLI admin sessions; deploy tokens remain valid until revoked.
 
 The `latest` image follows `main` and may change. Pin an image digest if you need a
 repeatable deployment. To build from source, clone this repository, comment out the
@@ -223,7 +224,10 @@ and does not make backups run automatically.
   alone does not coordinate a snapshot of the Git repositories.
 
 The [2026-10-27 security review](docs/SECURITY_REVIEW_2026-10-27.md) records checks,
-fixes, and remaining limitations at that point in time. It is not a guarantee that
+fixes, and remaining limitations at that point in time. A
+[follow-up review](docs/SECURITY_REVIEW_2026-10-27_FOLLOWUP.md) found and fixed
+additional denial-of-service, rate-limit, and session-revocation issues after
+v2.0.0; that release tag does not contain these fixes. Neither review guarantees that
 a deployment is secure or has never been breached.
 
 ## Architecture

@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync, mkdirSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { request } from 'node:http';
 
 /**
  * Full round-trip against a real NashGit server process:
@@ -85,7 +86,7 @@ after(() => {
   rmSync(workDir, { recursive: true, force: true });
 });
 
-test('full backup round-trip', { timeout: 60_000 }, async () => {
+test('full backup round-trip', { timeout: 60_000 }, async (t) => {
   // Login
   const login = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
@@ -136,6 +137,42 @@ test('full backup round-trip', { timeout: 60_000 }, async () => {
   assert.equal(tok.status, 201);
   token = tok.data.token;
   assert.ok(token.startsWith('ngt_'));
+
+  await t.test('rejected Git request bodies cannot terminate the server', async () => {
+    for (const [path, contentType, expected] of [
+      ['/git/missing.git/git-receive-pack', 'application/x-git-receive-pack-request', 404],
+      ['/git/e2e-project.git/git-receive-pack', 'text/plain', 415],
+    ] as const) {
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = request(`${BASE}${path}`, {
+          method: 'POST', headers: {
+            Authorization: `Basic ${Buffer.from(`x:${token}`).toString('base64')}`,
+            'Content-Type': contentType, 'Content-Length': String(8 * 1024 * 1024),
+          },
+        }, res => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode!));
+          res.on('error', reject);
+        });
+        req.on('error', reject);
+        req.setTimeout(5000, () => req.destroy(new Error('Git rejection timed out')));
+        req.end(Buffer.alloc(8 * 1024 * 1024, 120));
+      });
+      assert.equal(status, expected);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      assert.equal(server.exitCode, null, 'rejected uploads must not cause an unhandled EPIPE');
+      assert.equal((await fetch(`${BASE}/api/health`)).status, 200);
+    }
+  });
+
+  await t.test('API and Git credentials cannot substitute for each other', async () => {
+    assert.equal((await fetch(`${BASE}/api/tokens`, {
+      headers: { Authorization: `Basic ${Buffer.from(`x:${token}`).toString('base64')}` },
+    })).status, 401);
+    assert.equal((await fetch(`${BASE}/git/e2e-project.git/info/refs?service=git-upload-pack`, {
+      headers: { Cookie: cookie },
+    })).status, 401);
+  });
   const configDir = join(workDir, '.config', 'nashgit');
   mkdirSync(configDir, { recursive: true });
   writeFileSync(join(configDir, 'config.json'), JSON.stringify({ server: BASE, token }), { mode: 0o600 });
@@ -277,4 +314,30 @@ test('full backup round-trip', { timeout: 60_000 }, async () => {
   const verify = await api('/api/repos/e2e-project/verify', { method: 'POST' });
   assert.equal(verify.status, 200);
   assert.equal(verify.data.ok, true);
+
+  await t.test('logout revokes copied sessions without letting stale cookies revoke fresh logins', async () => {
+    for (const headers of [
+      { Origin: 'https://attacker.example', 'Sec-Fetch-Site': 'cross-site' },
+      { Origin: 'http://localhost:4444', 'Sec-Fetch-Site': 'same-site' },
+      { Origin: 'null', 'Sec-Fetch-Site': 'cross-site' },
+    ]) {
+      const blocked = await fetch(`${BASE}/api/auth/logout`, { method: 'POST', headers: { ...headers, Cookie: cookie } });
+      assert.equal(blocked.status, 403, 'another origin cannot use the browser session for a mutation');
+      assert.equal((await api('/api/repos')).status, 200);
+    }
+    const loggedOutCookie = cookie;
+    const logout = await fetch(`${BASE}/api/auth/logout`, { method: 'POST', headers: { Cookie: cookie, Origin: BASE } });
+    assert.equal(logout.status, 200);
+    assert.match(logout.headers.get('set-cookie') ?? '', /Expires=Thu, 01 Jan 1970/);
+    assert.equal((await api('/api/repos')).status, 401, 'copied JWT must no longer authenticate');
+    const loginAgain = await fetch(`${BASE}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'e2e-admin-new' }),
+    });
+    assert.equal(loginAgain.status, 200);
+    cookie = loginAgain.headers.get('set-cookie')!.split(';')[0];
+    await fetch(`${BASE}/api/auth/logout`, { method: 'POST', headers: { Cookie: loggedOutCookie } });
+    await fetch(`${BASE}/api/auth/logout`, { method: 'POST' });
+    assert.equal((await api('/api/repos')).status, 200);
+  });
 });

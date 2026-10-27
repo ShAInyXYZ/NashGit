@@ -4,11 +4,12 @@ import { requireGitToken } from '../auth/middleware.js';
 import { detectRefChange, recordPush, getRepo, refSnapshot } from '../git/repos.js';
 import { queueAudit } from '../audit/service.js';
 import { newlyPushedCommits } from '../git/history.js';
+import { asyncHandler } from '../middleware/async-handler.js';
 
 export const gitRouter = Router();
 
 // All git smart-HTTP requests require a deploy token (HTTP Basic auth).
-gitRouter.use(requireGitToken);
+gitRouter.use(asyncHandler(requireGitToken));
 
 // Attach a finish-listener BEFORE the handler runs, so we can record pushes
 // after the response fully streams out. This middleware must precede the

@@ -46,6 +46,17 @@ export function handleGitRequest(req: Request, res: Response): void {
 
   const child = spawn('git', ['http-backend'], { env });
 
+  // Git may reject a request before consuming its body. A later pipe write then
+  // emits EPIPE; without a listener Node terminates the entire server process.
+  child.stdin.on('error', (error: NodeJS.ErrnoException) => {
+    req.unpipe(child.stdin);
+    req.resume();
+    if (error.code !== 'EPIPE' && error.code !== 'ERR_STREAM_DESTROYED') {
+      console.error('[nashgit] git input stream error:', error.code);
+      child.kill();
+    }
+  });
+
   // Surface git-http-backend errors to the server log (it normally writes
   // diagnostics to stderr, not stdout).
   child.stderr.on('data', (chunk: Buffer) => {
@@ -70,9 +81,15 @@ export function handleGitRequest(req: Request, res: Response): void {
   let status = 200;
   const headers: { name: string; value: string }[] = [];
 
+  // Respect slow readers instead of buffering an entire clone in Node's heap.
+  function writeBody(chunk: Buffer) {
+    if (!res.destroyed && !res.write(chunk)) child.stdout.pause();
+  }
+  res.on('drain', () => child.stdout.resume());
+
   child.stdout.on('data', (chunk: Buffer) => {
     if (headerSepFound) {
-      res.write(chunk);
+      writeBody(chunk);
       return;
     }
     headersBuffer = Buffer.concat([headersBuffer, chunk]);
@@ -88,7 +105,8 @@ export function handleGitRequest(req: Request, res: Response): void {
       res.writeHead(status, Object.fromEntries(headers.map((h) => [h.name, h.value])));
       const body = headersBuffer.subarray(lfIdx + 2);
       headerSepFound = true;
-      if (body.length) res.write(body);
+      if (body.length) writeBody(body);
+      headersBuffer = Buffer.alloc(0);
       return;
     }
     const headerBlock = headersBuffer.subarray(0, idx).toString('utf8');
@@ -96,7 +114,8 @@ export function handleGitRequest(req: Request, res: Response): void {
     res.writeHead(status, Object.fromEntries(headers.map((h) => [h.name, h.value])));
     const body = headersBuffer.subarray(idx + 4);
     headerSepFound = true;
-    if (body.length) res.write(body);
+    if (body.length) writeBody(body);
+    headersBuffer = Buffer.alloc(0);
   });
 
   function parseCgiHeaders(block: string) {

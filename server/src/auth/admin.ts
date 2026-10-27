@@ -36,22 +36,18 @@ export async function bootstrapAdmin() {
   }
 }
 
-export async function verifyAdmin(username: string, password: string): Promise<boolean> {
+export async function verifyAdmin(username: string, password: string): Promise<AdminClaims | null> {
   const row = db
-    .prepare('SELECT username, password_hash FROM admin WHERE id = 1')
-    .get() as { username: string; password_hash: string } | undefined;
-  if (!row) return false;
-  if (row.username !== username) return false;
-  return bcrypt.compare(password, row.password_hash);
+    .prepare('SELECT username, password_hash, session_version FROM admin WHERE id = 1')
+    .get() as { username: string; password_hash: string; session_version: number } | undefined;
+  if (!row || row.username !== username || typeof password !== 'string') return null;
+  if (!await bcrypt.compare(password, row.password_hash)) return null;
+  // Bind the session to the credentials actually verified, not a newer database
+  // version that may have changed while bcrypt yielded to another request.
+  return { sub: 'admin', username: row.username, sessionVersion: row.session_version };
 }
 
-export function signSession(): string {
-  // Read the username from the DB, not config — it may have been renamed
-  // in Settings after boot.
-  const row = db
-    .prepare('SELECT username, session_version FROM admin WHERE id = 1')
-    .get() as { username: string; session_version: number };
-  const claims: AdminClaims = { sub: 'admin', username: row.username, sessionVersion: row.session_version };
+export function signSession(claims: AdminClaims): string {
   return jwt.sign(claims, config.secret, { expiresIn: '7d' });
 }
 
@@ -85,6 +81,11 @@ export async function changePassword(newPassword: string): Promise<void> {
   db.prepare(
     `UPDATE admin SET password_hash = ?, session_version = session_version + 1, updated_at = datetime('now') WHERE id = 1`
   ).run(hash);
+}
+
+/** Invalidate all sessions for the single admin account, including copied JWTs. */
+export function revokeAdminSessions(): void {
+  db.prepare('UPDATE admin SET session_version = session_version + 1 WHERE id = 1').run();
 }
 
 export function setAdminUsername(username: string): void {

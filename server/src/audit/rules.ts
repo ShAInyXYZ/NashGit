@@ -50,9 +50,29 @@ const recognizable: RegExp[] = [
 ];
 const secretAssignment = /\b(?:api[_-]?key|secret|password|passwd|access[_-]?token|auth[_-]?token)\b\s*[=:]\s*["'`]?([A-Za-z0-9_+/.=-]{12,})/i;
 const placeholder = /^(?:example|sample|placeholder|changeme|your[_-]|dummy|test|fake|redacted|xxxxxxxx|\$|\{|<)/i;
-const tlsBypass = /(?:NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0|rejectUnauthorized\s*:\s*false|verify\s*=\s*False|curl\s+[^\n]*\s-k(?:\s|$)|wget\s+[^\n]*--no-check-certificate)/i;
+const tlsBypass = /(?:NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0|rejectUnauthorized\s*:\s*false|verify\s*=\s*False)/i;
 const pipeShell = /\b(?:curl|wget)\b[^\n|]{0,300}\|\s*(?:sudo\s+)?(?:ba)?sh\b/i;
-const unsafeShell = /(?:\brm\s+-[a-z]*r[a-z]*f[a-z]*\s+\/(?:\s|$)|\bchmod\s+(?:-R\s+)?777\b)/i;
+const unsafePermissions = /\bchmod\s+(?:-R\s+)?777\b/i;
+
+function disablesTls(line: string): boolean {
+  if (tlsBypass.test(line)) return true;
+  // Inspect each suffix once, rather than backtracking from every repeated
+  // command word through the remainder of an attacker-controlled line.
+  const curl = /\bcurl\s+/i.exec(line);
+  if (curl && /(?:^|\s)-k(?:\s|$)/.test(line.slice(curl.index + curl[0].length))) return true;
+  const wget = /\bwget\s+/i.exec(line);
+  return Boolean(wget && /--no-check-certificate/i.test(line.slice(wget.index + wget[0].length)));
+}
+
+function deletesRoot(line: string): boolean {
+  // Parse the option token once. Overlapping [a-z]* groups around r/f caused
+  // catastrophic backtracking on long flag strings with no terminating space.
+  for (const match of line.matchAll(/\brm\s+-([a-z]+)\s+\/(?:\s|$)/gi)) {
+    const flags = match[1].toLowerCase();
+    if (flags.includes('r') && flags.includes('f')) return true;
+  }
+  return false;
+}
 
 export function pathRules(path: string, bytes: number): Finding[] {
   const result: Finding[] = [];
@@ -76,9 +96,9 @@ export function contentRules(path: string, text: string): Finding[] {
     if (recognizable.some((pattern) => pattern.test(line))) result.push(finding('SEC-001', path, number));
     const assignment = line.match(secretAssignment);
     if (assignment && !placeholder.test(assignment[1]) && !/^\d+$/.test(assignment[1]) && !/example|fixture|sample|test/i.test(path)) result.push(finding('SEC-002', path, number));
-    if (tlsBypass.test(line)) result.push(finding('SAFE-001', path, number));
+    if (disablesTls(line)) result.push(finding('SAFE-001', path, number));
     if (pipeShell.test(line)) result.push(finding('SAFE-002', path, number));
-    if (unsafeShell.test(line)) result.push(finding('SAFE-003', path, number));
+    if (deletesRoot(line) || unsafePermissions.test(line)) result.push(finding('SAFE-003', path, number));
   }
   return result;
 }

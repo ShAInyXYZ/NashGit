@@ -3,6 +3,21 @@
 All notable changes to NashGit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Security
+
+- Prevent rejected Git upload bodies from crashing the HTTP server, and respect
+  output backpressure for slow clients.
+- Remove catastrophic regex backtracking from automatic audit shell checks.
+- Upgrade the rate limiter and group IPv6 clients by subnet to prevent address
+  rotation bypasses.
+- Revoke admin sessions on web logout, preserve revocation during pending login
+  checks, and reject foreign browser origins for state-changing API requests.
+- See the [follow-up security review](docs/SECURITY_REVIEW_2026-10-27_FOLLOWUP.md)
+  for reproduction evidence, validation, and remaining limitations. These fixes
+  are not part of the v2.0.0 tag.
+
 ## [2.0.0] — 2026-10-27
 
 ### Added

@@ -1,5 +1,9 @@
 # Pre-publication security review — 2026-10-27
 
+**Follow-up:** a [second review](SECURITY_REVIEW_2026-10-27_FOLLOWUP.md) found
+additional exploitable issues in v2.0.0 and records their fixes. The checks below
+describe the earlier review, not a complete security guarantee.
+
 The local `main` and GitHub `main` both started at `ab96896`. The update existed as modified and untracked files, not unpublished commits. This review covers that update and focused checks of its authentication, Git operations, credential handling, and packaging.
 
 ## Findings corrected before publication

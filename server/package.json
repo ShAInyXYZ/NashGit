@@ -10,14 +10,14 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/auth/token.test.ts src/git/repos.test.ts src/audit/rules.test.ts src/audit/scanner.test.ts src/github/safety.test.ts src/github/service.test.ts src/e2e.test.ts"
+    "test": "tsx --test src/auth/admin.test.ts src/auth/token.test.ts src/git/repos.test.ts src/audit/rules.test.ts src/audit/scanner.test.ts src/github/safety.test.ts src/github/service.test.ts src/e2e.test.ts src/middleware/rate-limit.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.8.1",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
-    "express-rate-limit": "^7.5.0",
+    "express-rate-limit": "^8.7.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "nanoid": "^5.0.9"

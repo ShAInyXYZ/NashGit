@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { signSession, verifyAdmin, verifySession, sessionCookieOptions } from '../auth/admin.js';
+import { signSession, verifyAdmin, verifySession, sessionCookieOptions, revokeAdminSessions } from '../auth/admin.js';
 import { SESSION_COOKIE } from '../auth/middleware.js';
 
 export const authRouter = Router();
@@ -7,15 +7,16 @@ export const authRouter = Router();
 authRouter.post('/login', async (req, res, next) => {
   try {
     const { username, password } = req.body ?? {};
-    if (!username || !password) {
+    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
       res.status(400).json({ error: 'Username and password are required' });
       return;
     }
-    if (!(await verifyAdmin(username, password))) {
+    const claims = await verifyAdmin(username, password);
+    if (!claims) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
-    const token = signSession();
+    const token = signSession(claims);
     res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req.secure));
     res.json({ ok: true });
   } catch (err) {
@@ -24,7 +25,11 @@ authRouter.post('/login', async (req, res, next) => {
 });
 
 authRouter.post('/logout', (req, res) => {
-  res.clearCookie(SESSION_COOKIE, sessionCookieOptions(req.secure));
+  const token = req.cookies?.[SESSION_COOKIE];
+  // An unauthenticated or previously revoked cookie must not log out others.
+  if (token && verifySession(token)) revokeAdminSessions();
+  const { maxAge, ...options } = sessionCookieOptions(req.secure);
+  res.clearCookie(SESSION_COOKIE, options);
   res.json({ ok: true });
 });
 
@@ -36,7 +41,8 @@ authRouter.get('/me', (req, res) => {
   }
   const claims = verifySession(token);
   if (!claims) {
-    res.clearCookie(SESSION_COOKIE, sessionCookieOptions(req.secure));
+    const { maxAge, ...options } = sessionCookieOptions(req.secure);
+    res.clearCookie(SESSION_COOKIE, options);
     res.json({ authenticated: false });
     return;
   }

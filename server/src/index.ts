@@ -8,6 +8,7 @@ import db from './db.js'; // initialises + migrates the database
 import { bootstrapAdmin } from './auth/admin.js';
 import { cookieMiddleware } from './auth/middleware.js';
 import { loginLimiter, gitLimiter } from './middleware/rate-limit.js';
+import { requireSameOrigin } from './middleware/origin.js';
 import { authRouter } from './routes/auth.js';
 import { reposRouter } from './routes/repos.js';
 import { tokensRouter } from './routes/tokens.js';
@@ -52,6 +53,7 @@ app.set('trust proxy', config.trustedProxy);
 app.disable('x-powered-by');
 
 // ---- API -------------------------------------------------------------------
+app.use('/api', requireSameOrigin);
 app.use('/api/auth', loginLimiter, authRouter);
 app.use('/api/repos', reposRouter);
 app.use('/api/tokens', tokensRouter);
