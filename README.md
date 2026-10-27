@@ -43,8 +43,7 @@ file to demonstrate a finding; these are not production repositories.
 
 ![Dashboard with four demo repositories and one audit finding](docs/assets/screenshots/dashboard.jpg)
 
-<details>
-<summary>Commit explorer and audit reports</summary>
+### Commit explorer and audit reports
 
 Browse commit messages, changed files, text diffs, and review notes:
 
@@ -54,16 +53,11 @@ Inspect the scope, coverage, and findings of an audit:
 
 ![Audit report for the sample weather-station repository](docs/assets/screenshots/audit.jpg)
 
-</details>
-
-<details>
-<summary>Repository list, login, and tokens</summary>
+### Repository list, login, and tokens
 
 ![Repository list](docs/assets/screenshots/repos.jpg)
 ![Login](docs/assets/screenshots/login.jpg)
 ![Deploy token list showing only prefixes](docs/assets/screenshots/tokens.jpg)
-
-</details>
 
 ## Features
 
