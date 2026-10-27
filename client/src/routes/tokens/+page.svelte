@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { api, ApiError, relativeTime, type Token, type CreatedToken } from '$lib/api';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -31,6 +31,9 @@
 	let creating = $state(false);
 	let reveal = $state<CreatedToken | null>(null);
 	let copiedNew = $state(false);
+	let copyButton = $state<HTMLButtonElement | null>(null);
+	let savedButton = $state<HTMLButtonElement | null>(null);
+	let exampleCloneUrl = $state('');
 
 	onMount(load);
 
@@ -50,6 +53,9 @@
 		try {
 			const created = await api.tokens.create(newName.trim());
 			reveal = created;
+			exampleCloneUrl = `${window.location.origin}/git/repo.git`;
+			await tick();
+			copyButton?.focus();
 			newName = '';
 			await load();
 			toast.success('Token created');
@@ -58,6 +64,23 @@
 			else toast.error('Could not create token');
 		} finally {
 			creating = false;
+		}
+	}
+
+	function closeReveal() {
+		reveal = null;
+		copiedNew = false;
+		document.getElementById('tname')?.focus();
+	}
+
+	function handleDialogKeydown(event: KeyboardEvent) {
+		if (event.key !== 'Tab' || !copyButton || !savedButton) return;
+		if (event.shiftKey && document.activeElement === copyButton) {
+			event.preventDefault();
+			savedButton.focus();
+		} else if (!event.shiftKey && document.activeElement === savedButton) {
+			event.preventDefault();
+			copyButton.focus();
 		}
 	}
 
@@ -143,8 +166,8 @@
 			</div>
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-lg border border-border">
-			<Table>
+		<div class="overflow-x-auto rounded-lg border border-border">
+			<Table class="min-w-[34rem]">
 				<TableHeader>
 					<TableRow class="hover:bg-transparent">
 						<TableHead>Name</TableHead>
@@ -186,25 +209,25 @@
 
 <!-- Reveal-once modal -->
 {#if reveal}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-		<Card class="w-full max-w-lg border-primary/30">
+	<div role="dialog" aria-modal="true" aria-labelledby="token-created-title" tabindex="-1" onkeydown={handleDialogKeydown} class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+		<Card class="min-w-0 w-full max-w-lg border-primary/30">
 			<CardHeader>
 				<div class="flex items-center gap-2">
 					<ShieldCheckIcon class="size-5 text-primary" />
-					<CardTitle class="text-base">Token created</CardTitle>
+					<CardTitle id="token-created-title" class="text-base">Token created</CardTitle>
 				</div>
 				<CardDescription>
 					Copy this token now — you will not be able to see it again.
 				</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-4">
-				<div class="flex items-stretch gap-2">
-					<div class="flex flex-1 items-center rounded-lg border border-input bg-input/30 px-3 py-2.5">
-						<code class="flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-primary">
+				<div class="flex min-w-0 items-stretch gap-2">
+					<div class="flex min-w-0 flex-1 items-center rounded-lg border border-input bg-input/30 px-3 py-2.5">
+						<code class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-primary">
 							{reveal.token}
 						</code>
 					</div>
-					<Button onclick={copyNewToken} variant="secondary">
+					<Button bind:ref={copyButton} onclick={copyNewToken} variant="secondary" class="shrink-0" aria-label={copiedNew ? 'Token copied' : 'Copy token'}>
 						{#if copiedNew}
 							<CheckIcon class="size-4 text-primary" />
 						{:else}
@@ -222,13 +245,13 @@
 						When git asks for a password during push/pull, paste this token.
 						The username can be anything. Example:
 					</p>
-					<pre class="mt-2 overflow-x-auto rounded-md bg-background px-2.5 py-1.5 font-mono text-xs">git clone http://nas.local/git/repo.git
+					<pre class="mt-2 overflow-x-auto rounded-md bg-background px-2.5 py-1.5 font-mono text-xs">git clone {exampleCloneUrl}
 # Username: x
 # Password: {reveal.token.slice(0, 12)}…</pre>
 				</div>
 
 				<div class="flex justify-end">
-					<Button onclick={() => { reveal = null; copiedNew = false; }}>
+					<Button bind:ref={savedButton} onclick={closeReveal}>
 						I've saved it
 					</Button>
 				</div>

@@ -47,6 +47,8 @@ export interface Repo {
 	sizeBytes: number;
 	branches: number;
 	defaultBranch: string | null;
+	latestCommit: { hash: string; subject: string; author: string; authoredAt: string } | null;
+	audit_summary: { status: 'complete' | 'partial' | 'failed'; findings: number; highRisk: number; revision: string; finishedAt: string } | null;
 	clone_url: string;
 }
 
@@ -54,6 +56,11 @@ export interface VerifyResult {
 	ok: boolean;
 	output: string;
 	checkedAt: string;
+}
+
+export interface DeletedRepo {
+	name: string;
+	deleted_at: string;
 }
 
 export interface Token {
@@ -78,15 +85,80 @@ export interface PushLogEntry {
 	ip: string | null;
 }
 
+export interface BranchRef { name: string; hash: string }
+export interface CommitSummary {
+	hash: string;
+	parents: string[];
+	author: string;
+	email: string;
+	authoredAt: string;
+	subject: string;
+	body: string;
+}
+export interface CommitPage {
+	branch: string | null;
+	branches: BranchRef[];
+	commits: CommitSummary[];
+	hasMore: boolean;
+	nextOffset: number;
+}
+export interface ChangedFile {
+	path: string;
+	status: string;
+	additions: number | null;
+	deletions: number | null;
+}
+export interface CommitDetail extends CommitSummary {
+	files: ChangedFile[];
+	additions: number;
+	deletions: number;
+}
+export interface FileDiff { path: string; patch: string; truncated: boolean }
+export interface CommitNote { id: number; body: string; author: string; created_at: string }
+export type AuditScope = 'repository' | 'commit';
+export type AuditSeverity = 'critical' | 'high' | 'medium' | 'low';
+export interface AuditRule { id: string; title: string; category: string; severity: AuditSeverity; why: string; action: string }
+export interface AuditFinding { ruleId: string; severity: AuditSeverity; category: string; title: string; path: string; line: number | null; relatedPaths?: string[] }
+export interface AuditReport {
+	id: number; createdAt: string; rulebookVersion: number; repoName: string; scope: AuditScope; revision: string; branch: string | null;
+	status: 'complete' | 'partial' | 'failed'; source: 'manual' | 'push'; startedAt: string; finishedAt: string;
+	durationMs: number; summary: string;
+	metrics: { trackedFiles: number; consideredFiles: number; scannedFiles: number; binaryFiles: number; skippedFiles: number;
+		bytesScanned: number; duplicateGroups: number; findings: number; bySeverity: Record<AuditSeverity, number>; byRule: Record<string, number> };
+	limits: { maxFiles: number; maxBlobBytes: number; maxContentBytes: number; maxFindings: number };
+	skipped: { path: string; reason: string; bytes: number }[];
+	findings: AuditFinding[];
+}
+export interface AuditState { running: boolean; report: AuditReport | null }
+export interface AuditHistoryEntry { id: number; createdAt: string; revision: string; status: AuditReport['status']; source: AuditReport['source']; findings: number; bySeverity: Record<AuditSeverity, number>; scannedFiles: number; skippedFiles: number }
+
 export interface Settings {
 	admin: { username: string; created_at: string };
 	dataDir: string;
 	publicUrl: string | null;
 }
 
+export interface GitHubStatus { enabled: boolean; connected: boolean; account: { login: string } | null; message?: string }
+export interface GitHubRepo { nameWithOwner: string; description: string; url: string; isPrivate: boolean; isArchived: boolean; defaultBranch: string | null; canPush: boolean }
+export interface GitHubLink { repoName: string; githubRepo: string; linkedAt: string; lastSyncedAt: string | null; lastSyncedHash: string | null }
+export interface GitHubPreview { repoName: string; githubRepo: string; branch: string; localHash: string; remoteHash: string | null;
+	state: 'ready' | 'current' | 'new-branch' | 'blocked'; reason: string; github: GitHubRepo }
+
 // ---- API surface -----------------------------------------------------------
 
 export const api = {
+	github: {
+		status: () => request<GitHubStatus>('/api/github/status'),
+		available: () => request<GitHubRepo[]>('/api/github/available'),
+		links: () => request<GitHubLink[]>('/api/github/links'),
+		link: (name: string, githubRepo: string) => request<GitHubLink>(`/api/github/links/${encodeURIComponent(name)}`, { method: 'PUT', body: { githubRepo } }),
+		createPrivate: (name: string, githubName: string, description: string) =>
+			request<{ repo: GitHubRepo; link: GitHubLink }>(`/api/github/repos/${encodeURIComponent(name)}/create-private`, { method: 'POST', body: { name: githubName, description } }),
+		unlink: (name: string) => request<{ ok: true }>(`/api/github/links/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+		preview: (name: string) => request<GitHubPreview>(`/api/github/repos/${encodeURIComponent(name)}/preview`),
+		sync: (name: string, expectedLocal: string, expectedRemote: string | null, acknowledgePublic: boolean) =>
+			request<GitHubPreview>(`/api/github/repos/${encodeURIComponent(name)}/sync`, { method: 'POST', body: { expectedLocal, expectedRemote, acknowledgePublic } })
+	},
 	auth: {
 		login: (username: string, password: string) =>
 			request<{ ok: true }>('/api/auth/login', { method: 'POST', body: { username, password } }),
@@ -100,8 +172,33 @@ export const api = {
 			request<Repo>('/api/repos', { method: 'POST', body: { name, description } }),
 		remove: (name: string) =>
 			request<{ ok: true }>(`/api/repos/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+		trash: () => request<DeletedRepo[]>('/api/repos/trash'),
+		restore: (name: string) =>
+			request<{ ok: true }>(`/api/repos/trash/${encodeURIComponent(name)}/restore`, { method: 'POST' }),
 		log: (name: string) =>
 			request<PushLogEntry[]>(`/api/repos/${encodeURIComponent(name)}/log`),
+		commits: (name: string, branch?: string, offset = 0) =>
+			request<CommitPage>(`/api/repos/${encodeURIComponent(name)}/commits?${new URLSearchParams({ ...(branch ? { branch } : {}), offset: String(offset) })}`),
+		commit: (name: string, hash: string) =>
+			request<CommitDetail>(`/api/repos/${encodeURIComponent(name)}/commits/${encodeURIComponent(hash)}`),
+		diff: (name: string, hash: string, path: string) =>
+			request<FileDiff>(`/api/repos/${encodeURIComponent(name)}/commits/${encodeURIComponent(hash)}/diff?${new URLSearchParams({ path })}`),
+		imageUrl: (name: string, hash: string, path: string, version: 'before' | 'after') =>
+			`/api/repos/${encodeURIComponent(name)}/commits/${encodeURIComponent(hash)}/image?${new URLSearchParams({ path, version })}`,
+		notes: (name: string, hash: string) =>
+			request<CommitNote[]>(`/api/repos/${encodeURIComponent(name)}/commits/${encodeURIComponent(hash)}/notes`),
+		addNote: (name: string, hash: string, body: string) =>
+			request<CommitNote>(`/api/repos/${encodeURIComponent(name)}/commits/${encodeURIComponent(hash)}/notes`, { method: 'POST', body: { body } }),
+		removeNote: (name: string, hash: string, id: number) =>
+			request<{ ok: true }>(`/api/repos/${encodeURIComponent(name)}/commits/${encodeURIComponent(hash)}/notes/${id}`, { method: 'DELETE' }),
+		auditRules: (name: string) => request<AuditRule[]>(`/api/repos/${encodeURIComponent(name)}/audit/rules`),
+		audit: (name: string, scope: AuditScope, commit?: string) =>
+			request<AuditState>(`/api/repos/${encodeURIComponent(name)}/audit?${new URLSearchParams({ scope, ...(commit ? { commit } : {}) })}`),
+		auditHistory: (name: string, scope: AuditScope, commit?: string) =>
+			request<AuditHistoryEntry[]>(`/api/repos/${encodeURIComponent(name)}/audit/history?${new URLSearchParams({ scope, ...(commit ? { commit } : {}) })}`),
+		auditReport: (name: string, id: number) => request<AuditReport>(`/api/repos/${encodeURIComponent(name)}/audit/reports/${id}`),
+		runAudit: (name: string, scope: AuditScope, commit?: string) =>
+			request<{ queued: boolean; running: boolean }>(`/api/repos/${encodeURIComponent(name)}/audit`, { method: 'POST', body: { scope, ...(commit ? { commit } : {}) } }),
 		verify: (name: string) =>
 			request<VerifyResult>(`/api/repos/${encodeURIComponent(name)}/verify`, { method: 'POST' })
 	},

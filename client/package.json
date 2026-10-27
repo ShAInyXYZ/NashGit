@@ -32,5 +32,9 @@
 		"svelte-sonner": "^1.1.1",
 		"tailwind-merge": "^3.6.0",
 		"tailwind-variants": "^3.2.2"
+	},
+	"overrides": {
+		"cookie": "^0.7.2",
+		"postcss-selector-parser": "^6.1.5"
 	}
 }

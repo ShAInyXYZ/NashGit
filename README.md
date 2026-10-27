@@ -51,26 +51,20 @@ like any other folder.
 
 - **Push-only git remote** — clone, push, and pull over HTTP smart-transport.
 - **Deploy tokens** — revocable, bcrypt-hashed secrets used as the git password.
+- **Recoverable removal** — move a repository to Trash and restore its history and push log.
+- **Protected refs** — force pushes and branch deletion are rejected on the backup remote.
 - **Backup integrity checks** — one-click `git fsck` verification per repo, with a
   Healthy/Issues status on the dashboard. A backup you haven't verified isn't a backup.
 - **Freshness cherries** — each repo shows how alive its backup is at a glance:
   fresh, ripe, getting stale, or withered.
+- **Visual commit explorer** — browse branches, full commit messages, changed files, line-by-line diffs, and image revisions.
+- **Commit notes** — add and remove review notes on a commit; notes are stored in NashGit's SQLite data volume.
+- **Deterministic audits** — automatic post-push and manual repository/commit scans with severity counts, coverage, diagnostics, and a [published rulebook](docs/AUDIT.md).
+- **Local GitHub sync** — a visual [Github tab](docs/GITHUB.md) that detects the development machine's `gh` login, links or creates a private destination, previews branch differences, and pushes without force.
 - **Single-container deployment** — API, git transport, and web UI all on port `3000`.
 - **SvelteKit + shadcn-svelte UI** — dark by default, with a cherry accent.
-- **SQLite metadata** — repository list, token registry, and push history in one file.
+- **SQLite metadata** — repository list, token registry, push history, and commit notes in one file.
 - **Lightweight** — Node 20+, Express, and the system `git http-backend` for robust transport.
-
----
-
-## Screenshots
-
-<div align="center">
-
-<img src="docs/assets/screenshots/repos.png" alt="Repository list" width="48%" /> <img src="docs/assets/screenshots/repo-detail.png" alt="Repository detail with clone URL and push history" width="48%" />
-
-<img src="docs/assets/screenshots/tokens.png" alt="Deploy token management" width="48%" /> <img src="docs/assets/screenshots/login.png" alt="Admin login" width="48%" />
-
-</div>
 
 ---
 
@@ -126,6 +120,7 @@ nash login http://<nas-ip>:3000
 
 # Daily flow
 nash create my-project     # creates the repo on the NAS + adds the "nas" remote
+nash backup                # back up all local branches and tags
 nash push                  # push the current branch
 nash pull                  # pull the current branch
 nash clone dotfiles        # clone a repo from the NAS
@@ -133,9 +128,9 @@ nash list                  # see what's on the server
 ```
 
 `nash login` stores a machine-specific deploy token in
-`~/.config/nashgit/config.json` (mode `0600`) and embeds it in the remotes it
-creates — git never asks for a password again. Plain git keeps working exactly
-as before; `nash` is sugar, not a replacement.
+`~/.config/nashgit/config.json` (mode `0600`). Remote URLs contain no token;
+the CLI supplies it to Git through a local askpass helper. Use `nash` for
+authenticated Git operations.
 
 ### The manual way — plain git
 
@@ -236,20 +231,20 @@ npm install -g ./cli          # installs the `nash` command
 nash login http://nas:3000    # admin credentials, once per machine
 nash list                     # repos on the server, sizes, last push
 nash create my-app            # create repo on server + wire "nas" remote
+nash backup                   # push all local branches and tags
 nash push                     # git push nas <current-branch>
 nash pull                     # git pull nas <current-branch>
-nash clone dotfiles           # clone with auth embedded
+nash clone dotfiles           # clone using the locally stored token
 nash logout                   # remove local credentials
 ```
 
 What `nash login` does under the hood: authenticates against `/api/auth/login`,
 creates a deploy token named `nash-cli-<hostname>` on the server, and stores it
 in `~/.config/nashgit/config.json` (mode `0600`). Remotes created by `nash
-create` / `nash clone` embed that token, so git operations never prompt.
+create` / `nash clone` contain no token; the CLI's askpass helper supplies it.
 Revoking the token in the UI instantly locks that machine out.
 
-Plain git commands against the same server keep working — see
-[Back Up a Project](#back-up-a-project).
+Plain Git can also prompt for the token — see [Back Up a Project](#back-up-a-project).
 
 ### Using NashGit with AI agents
 
@@ -261,34 +256,46 @@ from common errors — without ever asking for your admin password.
 Install it into your agentic environment:
 
 ```bash
-# Claude Code / Kimi Code — user scope (all projects)
+# Codex — user scope (all projects)
+cp -r skills/nashgit ~/.codex/skills/
+
+# Claude Code — user scope (all projects)
 cp -r skills/nashgit ~/.claude/skills/
 
 # or project scope
 mkdir -p .claude/skills && cp -r skills/nashgit .claude/skills/
 ```
 
-For other agents, point them at the `SKILL.md` file or paste it into your
-`AGENTS.md` / `.cursorrules`. Once loaded, your agent will reach for
-`nash push` and `nash clone` on its own. See [`skills/README.md`](skills/README.md).
+See [`skills/README.md`](skills/README.md) for installation and
+[`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md) for backing up NashGit's own data.
 
 ---
 
 ## Development
 
 ```bash
-# Terminal 1 — server with hot reload
-cd server
-npm install
-npm run dev
-
-# Terminal 2 — client with hot reload
-cd client
-npm install
-npm run dev
+npm run install:all  # first time only
+npm run dev:local
 ```
 
-The client dev server proxies `/api` and `/git` to `localhost:3000`.
+Open `http://127.0.0.1:5173`. The client and server reload as you edit. The API
+runs on `127.0.0.1:4300`, and Vite proxies `/api` and `/git` to it. Development
+repositories, the database, and a generated admin login live under the ignored
+`.local-dev/` directory; run `cat .local-dev/credentials.json` locally to read
+the login. This development instance has no connection to the NAS deployment.
+
+To browse real commits while designing, copy a local Git project into the
+development instance (the source project is only read):
+
+```bash
+npm run seed:local -- /path/to/project ProjectName
+```
+
+This writes only under `.local-dev/`. Run it again to refresh a fast-forwarding
+local mirror. The development server must be running first.
+
+For separate terminals, run `npm run dev:server` and `npm run dev:client`.
+In that mode, the server uses port 3000 and the client proxies to it.
 
 For end-to-end git testing against the local server, build the client and let Express serve it:
 

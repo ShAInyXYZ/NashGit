@@ -10,6 +10,7 @@ server/public
 # Data (never bake into the image)
 data
 data-docker
+.local-dev
 **/data
 
 # VCS / CI

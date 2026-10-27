@@ -8,23 +8,26 @@
  *   nash create my-project            create repo on the server + wire remote
  *   nash clone dotfiles               clone a repo from the server
  *   nash push / nash pull             push/pull the current branch to the NAS
+ *   nash backup                       push every local branch and tag
  *   nash list                         list repos on the server
  *
  * After `nash login`, a deploy token is created on the server and stored in
- * ~/.config/nashgit/config.json (mode 0600). Every git remote the CLI wires
- * embeds that token, so git never prompts for a password again.
+ * ~/.config/nashgit/config.json (mode 0600). Remote URLs contain no token;
+ * Git gets it through a local askpass helper.
  *
  * Plain git keeps working too — this is sugar, not a replacement.
  */
 
-import { execFileSync, execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, chmodSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join, basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as readline from 'node:readline';
 
 const CONFIG_DIR = join(homedir(), '.config', 'nashgit');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+const ASKPASS_FILE = fileURLToPath(new URL('./askpass.mjs', import.meta.url));
 
 // ---------------------------------------------------------------------------
 // Colors + cherry art (TTY only; NO_COLOR respected)
@@ -67,6 +70,7 @@ function loadConfig() {
 function saveConfig(cfg) {
   mkdirSync(CONFIG_DIR, { recursive: true });
   writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  chmodSync(CONFIG_FILE, 0o600);
 }
 
 function requireConfig() {
@@ -87,14 +91,18 @@ function fatal(msg) {
 }
 
 function git(args, opts = {}) {
-  return execFileSync('git', args, { stdio: opts.quiet ? 'pipe' : 'inherit', ...opts })
+  return execFileSync('git', ['-c', 'credential.helper=', '-c', 'credential.useHttpPath=true', ...args], {
+    stdio: opts.quiet ? 'pipe' : 'inherit',
+    env: { ...process.env, LC_ALL: 'C', GIT_ASKPASS: ASKPASS_FILE, GIT_TERMINAL_PROMPT: '0' },
+    ...opts,
+  })
     ?.toString()
     .trim();
 }
 
 function insideGitRepo() {
   try {
-    execSync('git rev-parse --is-inside-work-tree', { stdio: 'pipe' });
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe' });
     return true;
   } catch {
     return false;
@@ -105,11 +113,11 @@ function currentBranch() {
   return git(['rev-parse', '--abbrev-ref', 'HEAD'], { quiet: true });
 }
 
-/** Build an authenticated remote URL: http://x:<token>@host/git/<repo>.git */
-function authedUrl(cfg, repo) {
+/** Build a credential-free remote URL. Git obtains the token via GIT_ASKPASS. */
+function remoteUrl(cfg, repo) {
   const u = new URL(cfg.server);
-  u.username = 'x';
-  u.password = cfg.token;
+  u.username = '';
+  u.password = '';
   u.pathname = `/git/${repo}.git`;
   return u.toString();
 }
@@ -190,6 +198,8 @@ async function cmdLogin(server) {
   if (!server) fatal('Usage: nash login <server-url>   e.g. nash login http://nas:3000');
   server = server.replace(/\/+$/, '');
   if (!/^https?:\/\//.test(server)) server = `http://${server}`;
+  const parsedServer = new URL(server);
+  if (parsedServer.username || parsedServer.password) fatal('Use a server URL without embedded credentials.');
 
   const health = await fetch(`${server}/api/health`).catch(() => null);
   if (!health?.ok) fatal(`Cannot reach ${server} — is NashGit running there?`);
@@ -249,16 +259,16 @@ async function cmdCreate(name, description = '') {
   console.log(`Created ${cfg.server}/git/${name}.git`);
 
   if (insideGitRepo()) {
-    const url = authedUrl(cfg, name);
+    const url = remoteUrl(cfg, name);
     const remotes = git(['remote'], { quiet: true }).split('\n').filter(Boolean);
     if (!remotes.includes('nas')) {
       git(['remote', 'add', 'nas', url]);
-      console.log('Added remote "nas" (token embedded — git will not ask for a password).');
+      console.log('Added remote "nas". The token stays in the local config.');
     } else {
       git(['remote', 'set-url', 'nas', url]);
       console.log('Updated remote "nas" to point at the new repo.');
     }
-    console.log(`Push your work: nash push`);
+    console.log('Back up branches and tags: nash backup');
   } else {
     console.log(`Clone it anywhere: nash clone ${name}`);
   }
@@ -267,17 +277,25 @@ async function cmdCreate(name, description = '') {
 function cmdClone(name, dir) {
   if (!name) fatal('Usage: nash clone <name> [directory]');
   const cfg = requireConfig();
-  git(['clone', '-o', 'nas', authedUrl(cfg, name), ...(dir ? [dir] : [])]);
+  git(['clone', '-o', 'nas', remoteUrl(cfg, name), ...(dir ? [dir] : [])]);
   const target = dir ?? basename(name);
   console.log(`\nCloned into ${target}. Push/pull with: nash push · nash pull`);
 }
 
-/** Prefer the "nas" remote; fall back to "origin" for plain clones. */
+/** Never push to origin by accident. */
 function nasRemote() {
   const remotes = git(['remote'], { quiet: true }).split('\n').filter(Boolean);
   if (remotes.includes('nas')) return 'nas';
-  if (remotes.includes('origin')) return 'origin';
-  fatal('No "nas" or "origin" remote configured in this repository.');
+  fatal('No "nas" remote configured in this repository.');
+}
+
+function cmdBackup() {
+  requireConfig();
+  if (!insideGitRepo()) fatal('Not inside a git repository.');
+  const remote = nasRemote();
+  git(['push', remote, '--all']);
+  git(['push', remote, '--tags']);
+  console.log('Backed up local branches and tags. Uncommitted files are not included.');
 }
 
 function cmdPush() {
@@ -314,6 +332,7 @@ Usage:
                                when run inside a git repository.
   nash clone <name> [dir]      Clone a repo from the server.
   nash push                    Push the current branch to the NAS.
+  nash backup                  Push all local branches and tags to the NAS.
   nash pull                    Pull the current branch from the NAS.
   nash status                  Show current server + token.
 
@@ -341,6 +360,7 @@ try {
     }
     case 'clone': cmdClone(args[0], args[1]); break;
     case 'push': cmdPush(); break;
+    case 'backup': cmdBackup(); break;
     case 'pull': cmdPull(); break;
     case 'status': cmdStatus(); break;
     case 'cherry': {

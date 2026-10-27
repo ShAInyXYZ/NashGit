@@ -16,6 +16,8 @@ const {
   getRepo,
   listRepos,
   deleteRepo,
+  listDeletedRepos,
+  restoreRepo,
   verifyRepo,
 } = await import('./repos.js');
 
@@ -75,11 +77,17 @@ test('verifyRepo detects corruption', async () => {
   assert.equal(repo?.last_check_ok, 0);
 });
 
-test('deleteRepo removes disk + DB and reports unknown repos', async () => {
+test('deleteRepo moves data to trash and restoreRepo returns it', async () => {
   await createRepo('gone', '');
   assert.equal(await deleteRepo('gone'), true);
   assert.ok(!existsSync(repoPath('gone')));
   assert.equal(await getRepo('gone'), null);
+  assert.ok(listDeletedRepos().some((r) => r.name === 'gone'));
+  await assert.rejects(() => createRepo('gone', ''), /already exists/);
+  assert.equal(await restoreRepo('gone'), true);
+  assert.ok(existsSync(join(repoPath('gone'), 'HEAD')));
+  assert.ok(await getRepo('gone'));
+  assert.equal(await restoreRepo('gone'), false);
   assert.equal(await deleteRepo('never-existed'), false);
 });
 

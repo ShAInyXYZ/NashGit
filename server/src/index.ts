@@ -13,6 +13,7 @@ import { reposRouter } from './routes/repos.js';
 import { tokensRouter } from './routes/tokens.js';
 import { settingsRouter } from './routes/settings.js';
 import { gitRouter } from './routes/git.js';
+import { githubRouter } from './routes/github.js';
 import { listRepos, totalDiskUsage } from './git/repos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -45,9 +46,9 @@ app.use((req, res, next) => {
 });
 app.use(cookieMiddleware);
 
-// Trust the first proxy hop so req.ip / req.protocol work behind a reverse
-// proxy (Traefik, nginx, Synology reverse proxy, etc.).
-app.set('trust proxy', 1);
+// Direct LAN clients must not be able to spoof X-Forwarded-* headers. Operators
+// behind a reverse proxy can opt in with the proxy's IP/CIDR.
+app.set('trust proxy', config.trustedProxy);
 app.disable('x-powered-by');
 
 // ---- API -------------------------------------------------------------------
@@ -55,6 +56,7 @@ app.use('/api/auth', loginLimiter, authRouter);
 app.use('/api/repos', reposRouter);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/github', githubRouter);
 
 // Public health + stats endpoint used by the login screen / dashboard widgets.
 app.get('/api/health', (_req, res) => {
@@ -93,8 +95,8 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Internal server error' });
 });
 
-const server = app.listen(config.port, () => {
-  console.log(`[nashgit] listening on :${config.port}`);
+const server = app.listen(config.port, config.host, () => {
+  console.log(`[nashgit] listening on ${config.host}:${config.port}`);
   console.log(`[nashgit] data dir: ${config.dataDir}`);
   if (!config.publicUrl) {
     console.log('[nashgit] tip: set NASHGIT_PUBLIC_URL so clone URLs are absolute.');

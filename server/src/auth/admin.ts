@@ -7,6 +7,7 @@ import { config } from '../config.js';
 export interface AdminClaims {
   sub: 'admin';
   username: string;
+  sessionVersion: number;
 }
 
 /** Seed the single admin row on first run, using an env password if given. */
@@ -48,9 +49,9 @@ export function signSession(): string {
   // Read the username from the DB, not config — it may have been renamed
   // in Settings after boot.
   const row = db
-    .prepare('SELECT username FROM admin WHERE id = 1')
-    .get() as { username: string };
-  const claims: AdminClaims = { sub: 'admin', username: row.username };
+    .prepare('SELECT username, session_version FROM admin WHERE id = 1')
+    .get() as { username: string; session_version: number };
+  const claims: AdminClaims = { sub: 'admin', username: row.username, sessionVersion: row.session_version };
   return jwt.sign(claims, config.secret, { expiresIn: '7d' });
 }
 
@@ -69,6 +70,10 @@ export function verifySession(token: string): AdminClaims | null {
   try {
     const decoded = jwt.verify(token, config.secret) as AdminClaims;
     if (decoded.sub !== 'admin') return null;
+    const row = db
+      .prepare('SELECT username, session_version FROM admin WHERE id = 1')
+      .get() as { username: string; session_version: number } | undefined;
+    if (!row || decoded.username !== row.username || decoded.sessionVersion !== row.session_version) return null;
     return decoded;
   } catch {
     return null;
@@ -78,12 +83,12 @@ export function verifySession(token: string): AdminClaims | null {
 export async function changePassword(newPassword: string): Promise<void> {
   const hash = await bcrypt.hash(newPassword, 10);
   db.prepare(
-    `UPDATE admin SET password_hash = ?, updated_at = datetime('now') WHERE id = 1`
+    `UPDATE admin SET password_hash = ?, session_version = session_version + 1, updated_at = datetime('now') WHERE id = 1`
   ).run(hash);
 }
 
 export function setAdminUsername(username: string): void {
   db.prepare(
-    `UPDATE admin SET username = ?, updated_at = datetime('now') WHERE id = 1`
+    `UPDATE admin SET username = ?, session_version = session_version + 1, updated_at = datetime('now') WHERE id = 1`
   ).run(username);
 }

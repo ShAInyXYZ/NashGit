@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { rename } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import db from '../db.js';
@@ -25,6 +26,7 @@ export interface RepoInfo {
   sizeBytes: number;
   branches: number;
   defaultBranch: string | null;
+  latestCommit: { hash: string; subject: string; author: string; authoredAt: string } | null;
 }
 
 /** Run a git command against a bare repo, returning trimmed stdout. */
@@ -50,13 +52,15 @@ async function repoStats(path: string): Promise<{
   sizeBytes: number;
   branches: number;
   defaultBranch: string | null;
+  latestCommit: { hash: string; subject: string; author: string; authoredAt: string } | null;
 }> {
   if (!existsSync(path)) {
-    return { sizeBytes: 0, branches: 0, defaultBranch: null };
+    return { sizeBytes: 0, branches: 0, defaultBranch: null, latestCommit: null };
   }
   const sizeBytes = await dirSizeBytes(path);
   let branches = 0;
   let defaultBranch: string | null = null;
+  let latestCommit: RepoInfo['latestCommit'] = null;
   // branch count + default branch are best-effort; ignore errors (empty repo)
   try {
     const refs = await git(path, [
@@ -69,11 +73,23 @@ async function repoStats(path: string): Promise<{
       .map((s) => s.trim())
       .filter(Boolean);
     branches = list.length;
-    defaultBranch = list[0] ?? null;
+    try {
+      defaultBranch = await git(path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+      if (!list.includes(defaultBranch)) defaultBranch = list[0] ?? null;
+    } catch {
+      defaultBranch = list[0] ?? null;
+    }
   } catch {
     /* empty repo */
   }
-  return { sizeBytes, branches, defaultBranch };
+  try {
+    const output = await git(path, ['log', '-1', '--all', '--format=%H%x00%s%x00%an%x00%aI']);
+    const [hash, subject, author, authoredAt] = output.split('\0');
+    if (hash && authoredAt) latestCommit = { hash, subject, author, authoredAt };
+  } catch {
+    /* empty repo */
+  }
+  return { sizeBytes, branches, defaultBranch, latestCommit };
 }
 
 interface RepoRow {
@@ -88,7 +104,7 @@ interface RepoRow {
 export async function listRepos(): Promise<RepoInfo[]> {
   const rows = db
     .prepare(
-      'SELECT name, description, created_at, last_push_at, last_check_at, last_check_ok FROM repos ORDER BY name'
+      'SELECT name, description, created_at, last_push_at, last_check_at, last_check_ok FROM repos WHERE deleted_at IS NULL ORDER BY name'
     )
     .all() as RepoRow[];
 
@@ -108,7 +124,7 @@ export async function listRepos(): Promise<RepoInfo[]> {
 export async function getRepo(name: string): Promise<RepoInfo | null> {
   const row = db
     .prepare(
-      'SELECT name, description, created_at, last_push_at, last_check_at, last_check_ok FROM repos WHERE name = ?'
+      'SELECT name, description, created_at, last_push_at, last_check_at, last_check_ok FROM repos WHERE name = ? AND deleted_at IS NULL'
     )
     .get(name) as RepoRow | undefined;
   if (!row) return null;
@@ -152,6 +168,8 @@ export async function createRepo(
   // Enable reflog on bare repos so we can capture from/to hashes on push.
   try {
     await execFileP('git', ['-C', path, 'config', 'core.logAllRefUpdates', 'true']);
+    await execFileP('git', ['-C', path, 'config', 'receive.denyNonFastForwards', 'true']);
+    await execFileP('git', ['-C', path, 'config', 'receive.denyDeletes', 'true']);
   } catch {
     /* best-effort */
   }
@@ -167,12 +185,39 @@ export async function createRepo(
 }
 
 export async function deleteRepo(name: string): Promise<boolean> {
-  const row = db.prepare('SELECT name FROM repos WHERE name = ?').get(name);
+  const row = db.prepare('SELECT name FROM repos WHERE name = ? AND deleted_at IS NULL').get(name);
   if (!row) return false;
   const path = repoPath(name);
-  // Async rm — a large repo must not block the event loop.
-  if (existsSync(path)) await rm(path, { recursive: true, force: true });
-  db.prepare('DELETE FROM repos WHERE name = ?').run(name);
+  const trashName = `${name}-${randomUUID()}.git`;
+  if (!existsSync(path)) throw new Error('Repository data is missing; cannot move it to trash.');
+  await rename(path, join(config.trashDir, trashName));
+  try {
+    db.prepare(`UPDATE repos SET deleted_at = datetime('now'), trash_name = ? WHERE name = ?`).run(trashName, name);
+  } catch (error) {
+    await rename(join(config.trashDir, trashName), path);
+    throw error;
+  }
+  return true;
+}
+
+export function listDeletedRepos(): { name: string; deleted_at: string }[] {
+  return db.prepare('SELECT name, deleted_at FROM repos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC').all() as { name: string; deleted_at: string }[];
+}
+
+export async function restoreRepo(name: string): Promise<boolean> {
+  const row = db.prepare('SELECT trash_name FROM repos WHERE name = ? AND deleted_at IS NOT NULL').get(name) as { trash_name: string } | undefined;
+  if (!row) return false;
+  const source = join(config.trashDir, row.trash_name);
+  const destination = repoPath(name);
+  if (!existsSync(source)) throw new Error('Repository data is missing from trash.');
+  if (existsSync(destination)) throw new Error('A repository already exists at the restore destination.');
+  await rename(source, destination);
+  try {
+    db.prepare('UPDATE repos SET deleted_at = NULL, trash_name = NULL WHERE name = ?').run(name);
+  } catch (error) {
+    await rename(destination, source);
+    throw error;
+  }
   return true;
 }
 
@@ -209,6 +254,17 @@ export function recordPush(opts: {
   db.prepare(
     `UPDATE repos SET last_push_at = datetime('now') WHERE name = ?`
   ).run(opts.repoName);
+}
+
+/** Stable ref listing for deciding whether a Git HTTP push changed anything. */
+export async function refSnapshot(repoName: string): Promise<string> {
+  const path = repoPath(repoName);
+  if (!existsSync(path)) return '';
+  try {
+    return await git(path, ['for-each-ref', '--format=%(refname) %(objectname)']);
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -253,7 +309,7 @@ export async function detectRefChange(
             'reflog',
             '--format=%H',
             '-n',
-            '2',
+            '1',
             '--skip',
             '1',
             ref,

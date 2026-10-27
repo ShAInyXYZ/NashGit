@@ -13,20 +13,25 @@ function resolveDataDir(): string {
 
 interface AppConfig {
   port: number;
+  host: string;
   dataDir: string;
   reposDir: string;
+  trashDir: string;
   dbPath: string;
   secret: string;
   adminSeedPassword: string;
   adminUsername: string;
   publicUrl: string;
+  trustedProxy: string | false;
   tokenPrefix: string;
 }
 
 export const config: AppConfig = {
   port: Number(process.env.PORT ?? 3000),
+  host: process.env.NASHGIT_HOST || '0.0.0.0',
   dataDir: resolveDataDir(),
   reposDir: '',
+  trashDir: '',
   dbPath: '',
   // JWT signing secret. Generate one if none provided (warns in logs).
   secret: process.env.NASHGIT_SECRET || randomBytes(32).toString('hex'),
@@ -36,15 +41,18 @@ export const config: AppConfig = {
   // Public base URL used to build clone URLs shown in the UI. If unset we
   // fall back to the request's host header at runtime.
   publicUrl: process.env.NASHGIT_PUBLIC_URL || '',
+  // Trust forwarded headers only when the operator names their proxy.
+  trustedProxy: process.env.NASHGIT_TRUST_PROXY || false,
   tokenPrefix: 'ngt_',
 };
 
 // Materialize derived paths and ensure they exist.
 config.reposDir = join(config.dataDir, 'repos');
+config.trashDir = join(config.dataDir, 'trash');
 config.dbPath = join(config.dataDir, 'nashgit.db');
 
 export function ensureDirs() {
-  for (const dir of [config.dataDir, config.reposDir]) {
+  for (const dir of [config.dataDir, config.reposDir, config.trashDir]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
 }

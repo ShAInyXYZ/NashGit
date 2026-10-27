@@ -6,8 +6,10 @@
 		relativeTime,
 		freshness,
 		FRESHNESS_LABEL,
-		type Repo
+		type Repo,
+		type DeletedRepo
 	} from '$lib/api';
+	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import FreshnessCherry from '$lib/components/FreshnessCherry.svelte';
@@ -26,20 +28,31 @@
 	import GitBranchIcon from '@lucide/svelte/icons/git-branch';
 
 	let repos = $state<Repo[]>([]);
+	let deletedRepos = $state<DeletedRepo[]>([]);
 	let loading = $state(true);
 	let query = $state('');
 
 	onMount(async () => {
 		try {
-			repos = await api.repos.list();
+			[repos, deletedRepos] = await Promise.all([api.repos.list(), api.repos.trash()]);
 		} finally {
 			loading = false;
 		}
 	});
 
+	async function restore(name: string) {
+		try {
+			await api.repos.restore(name);
+			[repos, deletedRepos] = await Promise.all([api.repos.list(), api.repos.trash()]);
+			toast.success(`Repository “${name}” restored`);
+		} catch {
+			toast.error('Could not restore repository');
+		}
+	}
+
 	const filtered = $derived(
 		query.trim()
-			? repos.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase()))
+			? repos.filter((r) => `${r.name} ${r.description} ${r.latestCommit?.subject ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))
 			: repos
 	);
 </script>
@@ -93,15 +106,17 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-lg border border-border">
-			<Table>
+		<div class="overflow-x-auto rounded-lg border border-border">
+			<Table class="min-w-[55rem]">
 				<TableHeader>
 					<TableRow class="hover:bg-transparent">
 						<TableHead class="w-[40%]">Name</TableHead>
 						<TableHead>Branches</TableHead>
 						<TableHead>Size</TableHead>
 						<TableHead>Last push</TableHead>
-						<TableHead class="text-right">Clone URL</TableHead>
+						<TableHead>Latest commit</TableHead>
+						<TableHead>Audit</TableHead>
+						<TableHead class="text-right">Integrity</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -136,18 +151,35 @@
 									<Badge variant="secondary" class="text-xs">{relativeTime(repo.last_push_at)}</Badge>
 								</span>
 							</TableCell>
-							<TableCell class="text-right">
-								<code class="hidden font-mono text-xs text-muted-foreground lg:inline-block">
-									{repo.clone_url.length > 40 ? repo.clone_url.slice(0, 37) + '…' : repo.clone_url}
-								</code>
-								<a href="/repos/{repo.name}" class="ml-2 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100">
-									open →
-								</a>
+							<TableCell class="max-w-64">
+								{#if repo.latestCommit}
+									<a href="/repos/{repo.name}?commit={repo.latestCommit.hash}" class="block truncate text-sm hover:text-primary" title={repo.latestCommit.subject}>{repo.latestCommit.subject}</a>
+									<code class="text-xs text-muted-foreground">{repo.latestCommit.hash.slice(0, 7)}</code>
+								{:else}<span class="text-xs text-muted-foreground">No commits yet</span>{/if}
 							</TableCell>
+							<TableCell class="text-xs"><a href="/repos/{repo.name}/audit" class="hover:text-primary {repo.audit_summary?.highRisk ? 'text-orange-300' : 'text-muted-foreground'}">{repo.audit_summary ? repo.audit_summary.highRisk ? `${repo.audit_summary.highRisk} high risk` : `${repo.audit_summary.findings} findings` : 'Run audit'}</a></TableCell>
+							<TableCell class="text-right text-xs {repo.last_check_ok === 1 ? 'text-emerald-300' : repo.last_check_ok === 0 ? 'text-destructive' : 'text-muted-foreground'}">{repo.last_check_ok === 1 ? 'Verified' : repo.last_check_ok === 0 ? 'Issue' : 'Not checked'}</TableCell>
 						</TableRow>
 					{/each}
 				</TableBody>
 			</Table>
 		</div>
+	{/if}
+	{#if !loading && deletedRepos.length}
+		<section class="space-y-3" aria-labelledby="trash-heading">
+			<h2 id="trash-heading" class="text-lg font-semibold">Trash</h2>
+			<p class="text-sm text-muted-foreground">These repositories are unavailable for Git operations until restored.</p>
+			<div class="divide-y rounded-lg border border-border">
+				{#each deletedRepos as deleted (deleted.name)}
+					<div class="flex flex-wrap items-center justify-between gap-3 p-3">
+						<div class="min-w-0">
+							<p class="truncate font-mono text-sm">{deleted.name}</p>
+							<p class="text-xs text-muted-foreground">Moved {relativeTime(deleted.deleted_at)}</p>
+						</div>
+						<Button variant="secondary" size="sm" onclick={() => restore(deleted.name)}>Restore</Button>
+					</div>
+				{/each}
+			</div>
+		</section>
 	{/if}
 </div>

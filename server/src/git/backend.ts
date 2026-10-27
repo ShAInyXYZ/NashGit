@@ -36,6 +36,12 @@ export function handleGitRequest(req: Request, res: Response): void {
     HTTP_GIT_PROTOCOL: (req.headers['git-protocol'] as string) || '',
     GATEWAY_INTERFACE: 'CGI/1.1',
     SERVER_PROTOCOL: 'HTTP/1.1',
+    // Apply to existing repositories as well as newly created ones.
+    GIT_CONFIG_COUNT: '2',
+    GIT_CONFIG_KEY_0: 'receive.denyNonFastForwards',
+    GIT_CONFIG_VALUE_0: 'true',
+    GIT_CONFIG_KEY_1: 'receive.denyDeletes',
+    GIT_CONFIG_VALUE_1: 'true',
   };
 
   const child = spawn('git', ['http-backend'], { env });

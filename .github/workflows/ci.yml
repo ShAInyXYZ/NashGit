@@ -48,6 +48,8 @@ jobs:
         with:
           node-version: 22
       - run: node --check cli/nash.mjs
+      - run: node --check cli/askpass.mjs
+      - run: node --test cli/askpass.test.mjs
 
   docker:
     name: Docker build

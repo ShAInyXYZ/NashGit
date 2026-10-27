@@ -13,7 +13,7 @@ services:
     container_name: nashgit
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${NASHGIT_BIND_ADDRESS:-0.0.0.0}:3000:3000"
     volumes:
       # All repos + the SQLite DB persist here. Back up this directory.
       - ./data:/data
@@ -31,5 +31,6 @@ services:
       NASHGIT_ADMIN_USERNAME: ${NASHGIT_ADMIN_USERNAME:-admin}
       # Public base URL for clone URLs shown in the UI (e.g. https://nas.local)
       NASHGIT_PUBLIC_URL: ${NASHGIT_PUBLIC_URL:-}
+      NASHGIT_TRUST_PROXY: ${NASHGIT_TRUST_PROXY:-}
       # Port inside the container (rarely needs changing)
       PORT: "3000"

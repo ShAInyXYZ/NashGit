@@ -11,6 +11,7 @@
 	import FolderGit2Icon from '@lucide/svelte/icons/folder-git-2';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import GitCompareArrowsIcon from '@lucide/svelte/icons/git-compare-arrows';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import MenuIcon from '@lucide/svelte/icons/menu';
 	import CircleUserIcon from '@lucide/svelte/icons/circle-user';
@@ -21,6 +22,7 @@
 	const nav = [
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboardIcon },
 		{ href: '/repos', label: 'Repositories', icon: FolderGit2Icon },
+		{ href: '/github', label: 'Github', icon: GitCompareArrowsIcon },
 		{ href: '/tokens', label: 'Tokens', icon: KeyRoundIcon },
 		{ href: '/settings', label: 'Settings', icon: SettingsIcon }
 	];
@@ -128,7 +130,7 @@
 			</header>
 
 			<main class="flex-1 overflow-y-auto">
-				<div class="mx-auto w-full max-w-6xl px-4 py-8 md:px-8 md:py-10">
+				<div class="mx-auto w-full px-4 py-8 md:px-8 md:py-10 {pathname.startsWith('/repos/') && pathname !== '/repos/new' ? 'max-w-[1600px]' : 'max-w-6xl'}">
 					{@render children()}
 				</div>
 			</main>

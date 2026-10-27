@@ -10,6 +10,7 @@ server/public/
 # Data (runtime — repos + SQLite DB)
 data/
 data-docker/
+.local-dev/
 
 # Environment
 .env

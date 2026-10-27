@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { handleGitRequest } from '../git/backend.js';
 import { requireGitToken } from '../auth/middleware.js';
-import { detectRefChange, recordPush, getRepo } from '../git/repos.js';
+import { detectRefChange, recordPush, getRepo, refSnapshot } from '../git/repos.js';
+import { queueAudit } from '../audit/service.js';
+import { newlyPushedCommits } from '../git/history.js';
 
 export const gitRouter = Router();
 
@@ -24,25 +26,43 @@ gitRouter.use((req, res, next) => {
   const match = req.path.match(/^\/([^/]+)\.git\//);
   const repoName = match?.[1];
 
-  res.on('finish', () => {
-    if (res.statusCode >= 400) return; // push failed, nothing to record
-    if (!repoName) return;
-    // Fire-and-forget — don't block the response.
-    (async () => {
-      const exists = await getRepo(repoName);
-      if (!exists) return;
-      const change = await detectRefChange(repoName);
-      recordPush({
-        repoName,
-        fromHash: change?.from ?? null,
-        toHash: change?.to ?? null,
-        pushedBy: req.tokenRow?.prefix ?? 'unknown',
-        ip: req.ip ?? null,
-      });
-    })().catch((err) => console.error('[nashgit] failed to record push:', err));
-  });
-
-  next();
+  if (!repoName) {
+    next();
+    return;
+  }
+  refSnapshot(repoName).then((before) => {
+    res.on('finish', () => {
+      if (res.statusCode >= 400) return;
+      // Git reports per-ref rejection inside an HTTP 200 response. Only record
+      // a push if its refs actually changed.
+      (async () => {
+        const exists = await getRepo(repoName);
+        if (!exists || before === await refSnapshot(repoName)) return;
+        const change = await detectRefChange(repoName);
+        recordPush({
+          repoName,
+          fromHash: change?.from ?? null,
+          toHash: change?.to ?? null,
+          pushedBy: req.tokenRow?.prefix ?? 'unknown',
+          ip: req.ip ?? null,
+        });
+        // Analyze in the background after Git has acknowledged the push.
+        // Audit failures never reject or undo a valid backup.
+        if (queueAudit(repoName, 'repository', undefined, 'push') === 'full') console.warn(`[nashgit] repository audit queue full for ${repoName}`);
+        if (change?.to) {
+          const pushed = await newlyPushedCommits(repoName, change.from, change.to);
+          if (pushed.omitted) console.warn(`[nashgit] push audit limited to 30 newest commits for ${repoName}; older commits can be audited manually`);
+          for (const hash of pushed.hashes) {
+            if (queueAudit(repoName, 'commit', hash, 'push') === 'full') {
+              console.warn(`[nashgit] commit audit queue full for ${repoName}`);
+              break;
+            }
+          }
+        }
+      })().catch((err) => console.error('[nashgit] failed to record push:', err));
+    });
+    next();
+  }).catch(next);
 });
 
 // Capture the entire git path as a single wildcard and let the handler parse

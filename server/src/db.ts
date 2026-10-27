@@ -48,6 +48,36 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_push_logs_repo ON push_logs(repo_name);
   CREATE INDEX IF NOT EXISTS idx_push_logs_time ON push_logs(pushed_at DESC);
   CREATE INDEX IF NOT EXISTS idx_tokens_prefix ON tokens(prefix);
+
+  CREATE TABLE IF NOT EXISTS commit_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_name TEXT NOT NULL REFERENCES repos(name) ON DELETE CASCADE,
+    commit_hash TEXT NOT NULL,
+    body TEXT NOT NULL,
+    author TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_commit_notes_target ON commit_notes(repo_name, commit_hash, created_at);
+
+  CREATE TABLE IF NOT EXISTS audit_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_name TEXT NOT NULL REFERENCES repos(name) ON DELETE CASCADE,
+    scope TEXT NOT NULL CHECK (scope IN ('repository', 'commit')),
+    revision TEXT NOT NULL,
+    source TEXT NOT NULL CHECK (source IN ('manual', 'push')),
+    status TEXT NOT NULL CHECK (status IN ('complete', 'partial', 'failed')),
+    report_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_reports_target ON audit_reports(repo_name, scope, revision, id DESC);
+
+  CREATE TABLE IF NOT EXISTS github_links (
+    repo_name TEXT PRIMARY KEY REFERENCES repos(name) ON DELETE CASCADE,
+    github_repo TEXT NOT NULL,
+    linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_synced_at TEXT,
+    last_synced_hash TEXT
+  );
 `);
 
 // ---- Migrations ------------------------------------------------------------
@@ -60,6 +90,19 @@ db.exec(`
   }
   if (!names.has('last_check_ok')) {
     db.exec(`ALTER TABLE repos ADD COLUMN last_check_ok INTEGER`);
+  }
+  if (!names.has('deleted_at')) {
+    db.exec(`ALTER TABLE repos ADD COLUMN deleted_at TEXT`);
+  }
+  if (!names.has('trash_name')) {
+    db.exec(`ALTER TABLE repos ADD COLUMN trash_name TEXT`);
+  }
+}
+
+{
+  const cols = db.prepare(`PRAGMA table_info(admin)`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'session_version')) {
+    db.exec(`ALTER TABLE admin ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0`);
   }
 }
 
