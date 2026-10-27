@@ -54,7 +54,12 @@ function git(args: string[], cwd: string) {
   return execFileSync('git', ['-c', 'credential.helper=', '-c', 'credential.useHttpPath=true', ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, LC_ALL: 'C', HOME: workDir, GIT_ASKPASS: askpassFile, GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_GLOBAL: '/dev/null' },
+    env: {
+      ...process.env, LC_ALL: 'C', HOME: workDir, GIT_ASKPASS: askpassFile,
+      GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_AUTHOR_NAME: 'NashGit E2E', GIT_AUTHOR_EMAIL: 'e2e@example.invalid',
+      GIT_COMMITTER_NAME: 'NashGit E2E', GIT_COMMITTER_EMAIL: 'e2e@example.invalid',
+    },
   }).trim();
 }
 

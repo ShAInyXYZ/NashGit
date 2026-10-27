@@ -16,6 +16,7 @@ The local `main` and GitHub `main` both started at `ab96896`. The update existed
 ## Verification
 
 - 22 server tests and 2 CLI credential tests passed.
+- The first GitHub CI run exposed an E2E fixture that relied on a machine-provided Git author identity. The fixture now sets both author and committer explicitly, and passes with inherited identities removed.
 - Server TypeScript and Svelte checks passed with no errors or warnings.
 - Server and static-client production builds passed.
 - Docker build passed using clean `npm ci` installs. An isolated container passed startup, health, SPA routing, admin login, unauthenticated API/Git rejection, and production-disabled GitHub integration checks.
