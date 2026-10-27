@@ -1,6 +1,6 @@
 {
   "name": "nashgit",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "NashGit — self-hosted git backup for your NAS",
   "type": "module",

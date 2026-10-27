@@ -1,6 +1,6 @@
 {
   "name": "nashgit-cli",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "nash — the NashGit CLI. One-word clone/push/pull against your NAS git remote.",
   "type": "module",
   "bin": {
