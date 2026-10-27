@@ -9,331 +9,311 @@
   </picture>
 </h1>
 
-### Self-hosted git backup for your NAS. Push your work to hardware you own.
+### A self-hosted Git remote for your NAS or home server
 
-NashGit turns any NAS, home server, or always-on machine into a private git remote.
-Create a repository and a deploy token from the web UI, then `git push`. Your code
-stays on your network, on your storage, under your control.
+Store copies of your Git repositories on a machine you control. Create a repository
+and deploy token in the web UI, then push with Git or the optional `nash` CLI.
 
-<br/>
+[![CI](https://img.shields.io/github/actions/workflow/status/ShAInyXYZ/NashGit/ci.yml?branch=main&label=CI)](https://github.com/ShAInyXYZ/NashGit/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![Node](https://img.shields.io/badge/Node-20%2B-2b2c28?style=for-the-badge&logo=nodedotjs&logoColor=ff4d6d)
-![SvelteKit](https://img.shields.io/badge/SvelteKit-2-2b2c28?style=for-the-badge&logo=svelte&logoColor=ff4d6d)
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-2b2c28?style=for-the-badge&logo=typescript&logoColor=ff4d6d)
-[![License](https://img.shields.io/badge/License-MIT-2b2c28?style=for-the-badge)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/ShAInyXYZ/NashGit/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/ShAInyXYZ/NashGit/actions/workflows/ci.yml)
-
-<br/>
-
-**[What It Is](#what-it-is)** · **[Features](#features)** · **[Quick Start](#quick-start)** · **[Back Up a Project](#back-up-a-project)** · **[Remote Access](#remote-access)** · **[Security](#security)** · **[Architecture](#architecture)** · **[CLI](#the-nash-cli)** · **[AI Agents](#using-nashgit-with-ai-agents)** · **[Development](#development)** · **[License](#license)**
+[Features](#features) · [Quick start](#quick-start) · [Back up a project](#back-up-a-project) · [Security](#security) · [Development](#development)
 
 </div>
 
----
+## What NashGit backs up
 
-## What It Is
+NashGit stores the Git commits, branches, and tags you push. Pushes are manual unless
+you arrange your own automation. It does not commit your working files for you.
 
-**NashGit is a tiny, self-hosted git remote for personal backups.**
+Uncommitted changes, ignored files, remote-tracking branches you have not made local,
+and submodule repositories are not included by `git push --all`. Git LFS object
+storage is not implemented. Back up those separately when your projects need them.
 
-It is not GitHub. It is not a forge, a CI system, or a collaboration platform. It is one
-thing done simply: a place you push your local repositories to, so they live on a machine
-you control. Run it in Docker on your NAS, open the web UI once to create a repo and token,
-and use plain `git` commands from every machine you work on.
+The app runs in one container with an Express API, a static SvelteKit UI, system Git,
+and SQLite metadata. The supplied Compose file keeps active repositories, trash,
+and database files in `./data`. Back up this volume consistently; do not treat a
+live directory copy as a complete backup. See [backup and restore](docs/BACKUP_RESTORE.md).
 
-The whole app ships as a **single container** with one port. No database to wire up, no
-reverse proxy required to start, and no monthly subscription. Your bare repositories and
-their metadata live in a single `./data` directory that you can back up, snapshot, or sync
-like any other folder.
+## Screenshots
 
-<div align="center">
-<br/>
-<img src="docs/assets/screenshots/dashboard.png" alt="NashGit dashboard" width="85%" />
-</div>
+Captured from a local instance with fictional projects and sample code. Backup ages
+were seeded for the demo. The audit example deliberately tracks a non-secret `.env`
+file to demonstrate a finding; these are not production repositories.
 
----
+![Dashboard with four demo repositories and one audit finding](docs/assets/screenshots/dashboard.jpg)
+
+<details>
+<summary>Commit explorer and audit reports</summary>
+
+Browse commit messages, changed files, text diffs, and review notes:
+
+![Commit explorer showing a watering-schedule helper and its diff](docs/assets/screenshots/repo-detail.jpg)
+
+Inspect the scope, coverage, and findings of an audit:
+
+![Audit report for the sample weather-station repository](docs/assets/screenshots/audit.jpg)
+
+</details>
+
+<details>
+<summary>Repository list, login, and tokens</summary>
+
+![Repository list](docs/assets/screenshots/repos.jpg)
+![Login](docs/assets/screenshots/login.jpg)
+![Deploy token list showing only prefixes](docs/assets/screenshots/tokens.jpg)
+
+</details>
 
 ## Features
 
-- **Push-only git remote** — clone, push, and pull over HTTP smart-transport.
-- **Deploy tokens** — revocable, bcrypt-hashed secrets used as the git password.
-- **Recoverable removal** — move a repository to Trash and restore its history and push log.
-- **Protected refs** — force pushes and branch deletion are rejected on the backup remote.
-- **Backup integrity checks** — one-click `git fsck` verification per repo, with a
-  Healthy/Issues status on the dashboard. A backup you haven't verified isn't a backup.
-- **Freshness cherries** — each repo shows how alive its backup is at a glance:
-  fresh, ripe, getting stale, or withered.
-- **Visual commit explorer** — browse branches, full commit messages, changed files, line-by-line diffs, and image revisions.
-- **Commit notes** — add and remove review notes on a commit; notes are stored in NashGit's SQLite data volume.
-- **Deterministic audits** — automatic post-push and manual repository/commit scans with severity counts, coverage, diagnostics, and a [published rulebook](docs/AUDIT.md).
-- **Local GitHub sync** — a visual [Github tab](docs/GITHUB.md) that detects the development machine's `gh` login, links or creates a private destination, previews branch differences, and pushes without force.
-- **Single-container deployment** — API, git transport, and web UI all on port `3000`.
-- **SvelteKit + shadcn-svelte UI** — dark by default, with a cherry accent.
-- **SQLite metadata** — repository list, token registry, push history, and commit notes in one file.
-- **Lightweight** — Node 20+, Express, and the system `git http-backend` for robust transport.
+- **Git over HTTP:** push, fetch, pull, and clone using deploy tokens.
+- **Branch protection:** the receive configuration rejects non-fast-forward branch
+  updates and branch deletion. This is not immutable or ransomware-proof storage;
+  an operator with filesystem access can still modify the data.
+- **Trash and restore:** removed repositories move to a trash directory and can be
+  restored with their metadata. Trash still consumes storage.
+- **Integrity checks:** run `git fsck --strict --no-dangling` from the repository page.
+  This checks stored Git objects; it does not prove you pushed every file or replace
+  a restore test.
+- **Commit explorer:** branch history, commit messages, file changes, text diffs,
+  selected raster-image previews, and notes stored in SQLite.
+- **Repository audits:** bounded pattern checks for possible secrets, risky commands,
+  tracked noise, large files, and exact duplicates. Audits run after Git HTTP pushes
+  or on request. They do not block a push, scan all history, or replace a security
+  review. See the [rulebook and coverage limits](docs/AUDIT.md).
+- **Local GitHub integration:** `npm run dev:local` can use the same machine's `gh`
+  login to link a destination, create a private repository, and push the default
+  branch without force. It does not sync tags or all branches, pull from GitHub,
+  or run automatically. It is disabled in the supplied NAS container.
+  See [GitHub integration](docs/GITHUB.md).
+- **Single admin account:** revocable deploy tokens grant Git access to all active
+  repositories. There are no separate users, repository-scoped tokens, or read-only roles.
 
----
+## Quick start
 
-## Quick Start
+You need Docker with Docker Compose and storage for the data volume. The current
+publishing workflow builds the prebuilt image for `linux/amd64`; an ARM NAS may
+require its own source build. ARM deployment has not been validated here.
 
-The recommended way to run NashGit is with Docker Compose and the prebuilt image.
+Run these commands in a new deployment directory so you do not overwrite an existing
+Compose file or environment file:
 
 ```bash
-# 1. Grab the compose file + env template (no need to clone the whole repo)
-curl -O https://raw.githubusercontent.com/ShAInyXYZ/NashGit/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/ShAInyXYZ/NashGit/main/.env.example
-mv .env.example .env
+mkdir nashgit-deploy
+cd nashgit-deploy
+curl -fLO https://raw.githubusercontent.com/ShAInyXYZ/NashGit/main/docker-compose.yml
+curl -fLO https://raw.githubusercontent.com/ShAInyXYZ/NashGit/main/.env.example
+cp .env.example .env
+```
 
-# 2. Configure — set NASHGIT_ADMIN_PASSWORD and NASHGIT_SECRET
-$EDITOR .env
+Edit `.env` before starting:
 
-# 3. Launch (pulls ghcr.io/shainyxyz/nashgit:latest)
+- Set `NASHGIT_ADMIN_PASSWORD` to your initial admin password, or leave it blank to
+  generate one at first startup.
+- Set `NASHGIT_SECRET` to a stable random value, for example the output of
+  `openssl rand -hex 32`.
+- Choose `NASHGIT_BIND_ADDRESS`. The default `0.0.0.0` publishes port 3000 on every
+  host interface. Use `127.0.0.1` for a proxy on the same host, or an appropriate
+  private interface address for your setup.
+- Set `NASHGIT_PUBLIC_URL` to the URL clients will use. If a reverse proxy terminates
+  HTTPS, also configure `NASHGIT_TRUST_PROXY` as described under [Security](#security).
+
+```bash
+docker compose pull
 docker compose up -d
-
-# 4. Open the UI
-# http://<nas-ip>:3000
 ```
 
-Prefer building from source? Clone the repo and uncomment `build: .` in
-`docker-compose.yml`, then `docker compose up -d --build`.
+Open `http://<nas-ip>:3000` only over a trusted, isolated connection, or use your
+configured HTTPS URL. The initial username is `admin` unless configured otherwise.
+If you left the password blank, read it locally from `docker compose logs nashgit`.
+It is printed only when the account is first created; protect those logs.
 
-On first start, NashGit seeds an admin account from `NASHGIT_ADMIN_PASSWORD`. If you leave
-that variable blank, a random password is generated and printed once in the logs:
+Changing the seed password in `.env` does not change an existing account. Use
+**Settings** after signing in. A password or username change invalidates existing
+admin sessions.
+
+The `latest` image follows `main` and may change. Pin an image digest if you need a
+repeatable deployment. To build from source, clone this repository, comment out the
+Compose `image:` line, uncomment `build: .`, and run `docker compose up -d --build`.
+Back up the data volume before upgrading.
+
+## Back up a project
+
+Create a repository such as `my-project` and a deploy token in the web UI. Then, in
+an existing local Git repository with commits:
 
 ```bash
-docker compose logs nashgit | grep "Generated admin password"
+# Replace nas.example with your configured server URL.
+git remote add nas https://nas.example/git/my-project.git
+git push nas --all
+git push nas --tags
 ```
 
-> [!IMPORTANT]
-> All data — bare repositories and the SQLite database — persists in `./data`. Back that
-> directory up. It is your backup.
+Use any username and the **deploy token** as the Git password. Do not embed the token
+in a URL. If `nas` already exists, inspect its destination before changing it.
+These two pushes are separate operations; check both results.
 
----
+For subsequent backups, commit your work and repeat the pushes. `git push nas main`
+pushes only `main`; substitute the branch you actually use. Divergent history needs
+to be resolved locally because non-fast-forward branch updates are rejected.
 
-## Back Up a Project
-
-### The easy way — the `nash` CLI
-
-The `cli/` directory ships `nash`, a tiny zero-dependency Node CLI that wires
-auth for you. Log in once; after that, everything is one word:
+To test a restore in a new directory:
 
 ```bash
-# One-time install (from the repo root)
-npm install -g ./cli
-
-# One-time login — creates a deploy token for this machine automatically
-nash login http://<nas-ip>:3000
-
-# Daily flow
-nash create my-project     # creates the repo on the NAS + adds the "nas" remote
-nash backup                # back up all local branches and tags
-nash push                  # push the current branch
-nash pull                  # pull the current branch
-nash clone dotfiles        # clone a repo from the NAS
-nash list                  # see what's on the server
+git clone --branch main https://nas.example/git/my-project.git restored-project
 ```
 
-`nash login` stores a machine-specific deploy token in
-`~/.config/nashgit/config.json` (mode `0600`). Remote URLs contain no token;
-the CLI supplies it to Git through a local askpass helper. Use `nash` for
-authenticated Git operations.
-
-### The manual way — plain git
-
-Once you have created a repository and a deploy token in the web UI:
-
-```bash
-# From your local project:
-git remote add nas http://<nas-ip>:3000/git/my-project.git
-git push nas main
-
-# Username: anything (for example, "x")
-# Password: paste your deploy token
-```
-
-To restore or clone elsewhere:
-
-```bash
-git clone http://<nas-ip>:3000/git/my-project.git
-# Use the same token as the password.
-```
-
----
-
-## Remote Access
-
-Want to push and pull when you're away from home? Don't forward a port — put
-NashGit on a private overlay network instead. The recommended setup is
-[Tailscale](https://tailscale.com) on the NAS and your devices: your tailnet
-name (e.g. `http://nas:3000`) works from anywhere, encrypted, with no router
-changes and no public exposure. NashGit needs zero configuration changes — the
-same admin login and deploy tokens cover you.
-
-See [`docs/REMOTE_ACCESS.md`](docs/REMOTE_ACCESS.md) for the full guide,
-including HTTPS inside the tailnet, Tailscale Funnel for public access, and
-reverse-proxy alternatives. For a step-by-step hardened setup, follow
-[`docs/TAILSCALE.md`](docs/TAILSCALE.md).
-
----
-
-## Security
-
-- **Run behind a reverse proxy for TLS.** NashGit serves plain HTTP. In production, put it
-  behind Traefik, nginx, Caddy, or your NAS built-in reverse proxy. When the request is
-  served over HTTPS, the admin session cookie is automatically marked `Secure`.
-- **Protect your deploy tokens.** They grant push and pull access to all repositories. Store
-  them in a password manager or credential helper, not in plaintext.
-- **Rate limiting is built in.** Login attempts and git requests are rate-limited by IP to
-  contain brute-force cost.
-- **Back up `./data` safely.** Because SQLite runs in WAL mode, copy the directory while the
-  container is stopped, or use SQLite's online backup API, to avoid an inconsistent snapshot.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Docker container (port 3000)                           │
-│                                                         │
-│  Express server (Node + TypeScript)                     │
-│  ├── /api/*   — admin auth, repos, tokens, settings     │
-│  ├── /git/*   — git smart-HTTP (push / pull / clone)    │
-│  │               spawns git http-backend as CGI         │
-│  └── /*       — static SvelteKit SPA                   │
-│                                                         │
-│  /data                                                  │
-│  ├── repos/<name>.git   (bare git repositories)         │
-│  └── nashgit.db          (SQLite metadata)              │
-└─────────────────────────────────────────────────────────┘
-```
-
-| Layer | Technology | Role |
-|---|---|---|
-| **Server** | `server/` | Express API, auth, database, git transport orchestration |
-| **Client** | `client/` | SvelteKit 2 static SPA served by Express |
-| **CLI** | `cli/` | Zero-dependency Node wrapper around git (`nash …`) |
-| **Database** | `better-sqlite3` | Metadata and push logs, WAL mode enabled |
-| **Git transport** | `git http-backend` | Battle-tested smart-HTTP over CGI |
-
-### Authentication
-
-- **Admin session** — username and password exchange for an `httpOnly` JWT cookie, valid for
-  seven days. Used by the web UI and the CLI's `nash login`.
-- **Deploy tokens** — secrets with an `ngt_` prefix, bcrypt-hashed at rest, shown once on
-  creation. Used as the password for git Basic auth. The username is ignored. Revocable from
-  the UI.
-
----
+Substitute an existing branch. New bare repositories initially point `HEAD` at
+`main`; specifying `--branch` avoids relying on that default if you use another name.
+A plain clone names its remote `origin`; the CLI's clone names it `nas`.
 
 ## The nash CLI
 
-`nash` is a small Node script (no dependencies, Node 20+) that makes your NAS
-feel like a hosted remote. One login per machine, then plain words:
+The optional CLI requires Node.js 20+ and Git. Install it from a checkout of this
+repository, not from the Compose-only deployment directory:
 
 ```bash
-npm install -g ./cli          # installs the `nash` command
-
-nash login http://nas:3000    # admin credentials, once per machine
-nash list                     # repos on the server, sizes, last push
-nash create my-app            # create repo on server + wire "nas" remote
-nash backup                   # push all local branches and tags
-nash push                     # git push nas <current-branch>
-nash pull                     # git pull nas <current-branch>
-nash clone dotfiles           # clone using the locally stored token
-nash logout                   # remove local credentials
+npm install -g ./cli
+nash login https://nas.example
 ```
 
-What `nash login` does under the hood: authenticates against `/api/auth/login`,
-creates a deploy token named `nash-cli-<hostname>` on the server, and stores it
-in `~/.config/nashgit/config.json` (mode `0600`). Remotes created by `nash
-create` / `nash clone` contain no token; the CLI's askpass helper supplies it.
-Revoking the token in the UI instantly locks that machine out.
+`nash login` stores a deploy token and an admin session cookie in
+`~/.config/nashgit/config.json`. This file is **plaintext**, with mode `0600` on
+systems that honor POSIX permissions. The CLI supplies the token to Git through a
+helper restricted to the configured server; newly created remote URLs have no token.
+Old CLI-created remotes may still contain credentials and should be cleaned up.
 
-Plain Git can also prompt for the token — see [Back Up a Project](#back-up-a-project).
+| Command | Behavior |
+|---|---|
+| `nash create my-project` | Creates a server repository and adds or updates `nas` when run inside a local repository. |
+| `nash backup` | Pushes all local branches, then tags, to `nas`. |
+| `nash push` / `nash pull` | Pushes or pulls the current branch using `nas`. Pull modifies your local checkout. |
+| `nash clone my-project` | Clones using the locally stored token, with remote name `nas`. |
+| `nash list` | Lists repositories using the stored admin session. |
+| `nash status` | Shows the server and token prefix. |
+| `nash logout` | Removes local configuration; does **not** revoke the server token. |
+
+Admin sessions expire after seven days and can be invalidated sooner. `nash list`
+and `nash create` then require another login; token-based Git operations can continue
+until the token is revoked. Each login creates another deploy token. Revoke unused
+tokens in the UI. Revocation blocks new authentication attempts, not transfers
+already in progress.
 
 ### Using NashGit with AI agents
 
-AI coding agents know git, not `nash`. The repo ships an **agent skill** at
-[`skills/nashgit/SKILL.md`](skills/nashgit/SKILL.md) that teaches them the CLI:
-how to check login state, back up a project, clone, push, pull, and recover
-from common errors — without ever asking for your admin password.
+The repository includes an optional [NashGit skill](skills/nashgit/SKILL.md) for
+CLI usage and backup precautions. Install it into your agent's skills directory;
+see [installation instructions](skills/README.md). The skill contains no credentials
+and does not make backups run automatically.
 
-Install it into your agentic environment:
+## Security
 
-```bash
-# Codex — user scope (all projects)
-cp -r skills/nashgit ~/.codex/skills/
+- NashGit itself serves HTTP. Use HTTPS through a reverse proxy or an appropriately
+  restricted encrypted network. HTTP Basic authentication does not encrypt tokens.
+- Behind a TLS proxy, set `NASHGIT_TRUST_PROXY` to the trusted proxy IP/CIDR and have
+  the proxy supply the correct forwarded protocol. This lets Express recognize HTTPS
+  and mark session cookies `Secure`. Leave proxy trust unset for direct access; do
+  not trust arbitrary forwarded headers. `NASHGIT_PUBLIC_URL` alone does not do this.
+- Admin passwords and deploy tokens are bcrypt-hashed in the database. The CLI's
+  local credentials and repository contents are not encrypted by NashGit.
+- Every deploy token can read and write every active repository. Protect and revoke
+  tokens accordingly. Login and Git requests have IP-based rate limits.
+- Restrict network access explicitly. Installing Tailscale does not change Docker's
+  published-port binding or automatically remove LAN/public exposure. Configure the
+  bind address, firewall/access policy, and URL for your actual network. See the
+  [remote access](docs/REMOTE_ACCESS.md) and [Tailscale](docs/TAILSCALE.md) guides.
+- A Git backup is one copy of your history, not a complete disaster-recovery plan.
+  Preserve an independent copy of the whole data volume. For a consistent offline
+  backup, stop NashGit, copy the volume, then restart it. SQLite's online backup API
+  alone does not coordinate a snapshot of the Git repositories.
 
-# Claude Code — user scope (all projects)
-cp -r skills/nashgit ~/.claude/skills/
+The [2026-10-27 security review](docs/SECURITY_REVIEW_2026-10-27.md) records checks,
+fixes, and remaining limitations at that point in time. It is not a guarantee that
+a deployment is secure or has never been breached.
 
-# or project scope
-mkdir -p .claude/skills && cp -r skills/nashgit .claude/skills/
+## Architecture
+
+```text
+Express (port 3000 in the supplied container)
+├── /api/*       Admin APIs: auth, repositories, tokens, notes, audits, settings
+├── /api/github  GitHub integration (opt-in local development only)
+├── /git/*       Git smart HTTP via git http-backend
+└── /*           Built SvelteKit SPA
+
+/data
+├── repos/       Active bare Git repositories
+├── trash/       Recoverable removed repositories
+├── nashgit.db   SQLite metadata
+└── SQLite WAL/SHM files while the database is active
 ```
 
-See [`skills/README.md`](skills/README.md) for installation and
-[`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md) for backing up NashGit's own data.
+## Configuration
 
----
+Compose reads `.env` for the variables it explicitly passes to the container.
+When running Node directly, provide environment variables in the process environment;
+the server does not load `.env` itself.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NASHGIT_ADMIN_PASSWORD` | Generated | Seeds the admin password only if no admin exists. |
+| `NASHGIT_ADMIN_USERNAME` | `admin` | Seeds the initial username. |
+| `NASHGIT_SECRET` | New random value per start | Signs session JWTs; use a stable random secret to preserve sessions across restarts. |
+| `NASHGIT_PUBLIC_URL` | Request origin | Base URL displayed in clone instructions. |
+| `NASHGIT_TRUST_PROXY` | Unset | Trusted reverse-proxy IP/CIDR. |
+| `NASHGIT_BIND_ADDRESS` | `0.0.0.0` | Compose-only host interface for the published port. |
+| `PORT` | `3000` | Server listener port. The supplied Compose file fixes internal and external ports at 3000; edit its mapping/environment to change them. |
+| `NASHGIT_HOST` | `0.0.0.0` | Direct Node listener address; `dev:local` uses `127.0.0.1`. |
+| `NASHGIT_DATA_DIR` | `../data` relative to process cwd | Data root; the container uses `/data`. |
+| `NASHGIT_GITHUB_LOCAL_INTEGRATION` | Disabled | Set to `1` with a loopback `NASHGIT_HOST` to enable server-machine GitHub CLI access. `dev:local` sets this. |
 
 ## Development
 
+Use Git, npm, and Node.js **22.12+ on the 22.x line, or Node.js 24+** for the full
+client/server toolchain. The CLI's Node 20 minimum is not the same as the client
+build tools' minimum. The Dockerfile uses Node 22.
+
+From the repository root:
+
 ```bash
-npm run install:all  # first time only
+npm ci --prefix server
+npm ci --prefix client
 npm run dev:local
 ```
 
-Open `http://127.0.0.1:5173`. The client and server reload as you edit. The API
-runs on `127.0.0.1:4300`, and Vite proxies `/api` and `/git` to it. Development
-repositories, the database, and a generated admin login live under the ignored
-`.local-dev/` directory; run `cat .local-dev/credentials.json` locally to read
-the login. This development instance has no connection to the NAS deployment.
+Open `http://127.0.0.1:5173`. Vite proxies `/api` and `/git` to the API on
+`127.0.0.1:4300`. Generated login details are in `.local-dev/credentials.json`;
+read that file privately. Demo/development data lives under `.local-dev/`, which
+is excluded from Git and Docker builds. The standard local launcher also enables
+GitHub integration using this machine's existing `gh` login. It does not deploy
+or modify a NAS instance.
 
-To browse real commits while designing, copy a local Git project into the
-development instance (the source project is only read):
+To import a local working tree's committed branches and tags into the development
+instance while it is running:
 
 ```bash
 npm run seed:local -- /path/to/project ProjectName
 ```
 
-This writes only under `.local-dev/`. Run it again to refresh a fast-forwarding
-local mirror. The development server must be running first.
+This creates or updates a local mirror without committing the source's working
+files. It pushes directly to local repository storage, so it does not trigger the
+Git HTTP route's automatic audits; use the UI to run an audit afterward.
 
-For separate terminals, run `npm run dev:server` and `npm run dev:client`.
-In that mode, the server uses port 3000 and the client proxies to it.
-
-For end-to-end git testing against the local server, build the client and let Express serve it:
+Checks and builds:
 
 ```bash
-cd client && npm run build
-rm -rf ../server/public && cp -r build ../server/public
-cd ../server && npm run dev
+npm run typecheck
+npm test --prefix server
+node --test cli/askpass.test.mjs
+npm run build
 ```
 
----
-
-## Configuration
-
-All configuration is via environment variables. See `.env.example` for the full template.
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `NASHGIT_ADMIN_PASSWORD` | first run | random | Admin password, applied only when the database is empty. |
-| `NASHGIT_SECRET` | recommended | random | JWT signing secret. Set a stable value so sessions survive restarts. |
-| `NASHGIT_ADMIN_USERNAME` | no | `admin` | Admin username. |
-| `NASHGIT_PUBLIC_URL` | no | auto | Base URL used for clone URLs shown in the UI. |
-| `PORT` | no | `3000` | Container port. |
-
----
+`npm run build` produces `server/dist` and `client/build`; it does not copy the client
+into the server's static directory. The Dockerfile performs that packaging step.
+To serve a built client locally without Docker, copy `client/build` to
+`server/public` (replacing an older generated copy if present), then run
+`npm start --prefix server` with the desired environment variables.
 
 ## License
 
-NashGit is open source under the **MIT License** — free for personal and
-commercial use, forever. See [`LICENSE`](LICENSE) for the full text.
-
-**Copyright © 2026 Mounir Belahbib** ([@ShAInyXYZ](https://github.com/ShAInyXYZ)) · **Shiny-Studio OÜ** ([Estonian reg. 16817281](https://ariregister.rik.ee/eng/company/16817281/Shiny-Studio-O%C3%9C), Tallinn).
-
-<div align="center">
-<br/>
-<sub>Built with Node · Express · SvelteKit · Tailwind CSS · better-sqlite3 · shadcn-svelte.</sub>
-</div>
+[MIT](LICENSE). Copyright © 2026 Mounir Belahbib and Shiny-Studio OÜ.
