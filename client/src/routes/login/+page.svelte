@@ -6,7 +6,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '$lib/components/ui/card/index.js';
-	import favicon from '$lib/assets/favicon.svg';
+	import { assets } from '$app/paths';
 
 	import Loader2Icon from '@lucide/svelte/icons/loader-2';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
@@ -44,9 +44,9 @@
 
 	<div class="relative w-full max-w-sm">
 		<div class="mb-8 flex flex-col items-center gap-3 text-center">
-			<img src={favicon} alt="NashGit" class="size-14" />
+			<img src="{assets}/nashgit-mark.svg" alt="" width="989" height="1043" class="size-16 object-contain" />
 			<div>
-				<h1 class="text-2xl font-semibold tracking-tight">NashGit</h1>
+				<h1><img src="{assets}/nashgit-wordmark-white.svg" alt="NashGit" width="1841" height="407" class="mx-auto h-auto w-40" /></h1>
 				<p class="mt-1 text-sm text-muted-foreground">Sign in to manage your git backups</p>
 			</div>
 		</div>

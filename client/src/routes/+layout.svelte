@@ -5,7 +5,7 @@
 	import { Toaster } from '$lib/components/ui/sonner/index.js';
 	import { toast } from 'svelte-sonner';
 	import { api } from '$lib/api';
-	import favicon from '$lib/assets/favicon.svg';
+	import { assets } from '$app/paths';
 
 	import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
 	import FolderGit2Icon from '@lucide/svelte/icons/folder-git-2';
@@ -48,8 +48,6 @@
 	const isLogin = $derived(pathname === '/login');
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
-
 {#if isLogin}
 	<!-- Login screen is rendered standalone, no chrome. -->
 	{@render children()}
@@ -72,9 +70,9 @@
 			class:-translate-x-full={!mobileOpen}
 		>
 			<div class="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
-				<img src={favicon} alt="NashGit" class="size-7" />
-				<div class="flex flex-col leading-none">
-					<span class="text-base font-semibold tracking-tight">NashGit</span>
+				<img src="{assets}/nashgit-mark.svg" alt="" width="989" height="1043" class="size-8 shrink-0 object-contain" />
+				<div class="flex flex-col gap-1 leading-none">
+					<img src="{assets}/nashgit-wordmark-white.svg" alt="NashGit" width="1841" height="407" class="h-auto w-28" />
 					<span class="text-[0.65rem] text-muted-foreground">git backup for NAS</span>
 				</div>
 			</div>
@@ -124,8 +122,8 @@
 					<MenuIcon class="size-5" />
 				</button>
 				<div class="flex items-center gap-2">
-					<img src={favicon} alt="" class="size-6" />
-					<span class="font-semibold">NashGit</span>
+					<img src="{assets}/nashgit-mark.svg" alt="" width="989" height="1043" class="size-7 shrink-0 object-contain" />
+					<img src="{assets}/nashgit-wordmark-white.svg" alt="NashGit" width="1841" height="407" class="h-auto w-24" />
 				</div>
 			</header>
 

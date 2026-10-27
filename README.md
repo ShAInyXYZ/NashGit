@@ -1,8 +1,13 @@
 <div align="center">
 
-<img src="docs/assets/logo.svg" alt="NashGit" width="160" />
+<img src="client/static/nashgit-mark.svg" alt="NashGit cherry and Git branch mark" width="160" />
 
-# NashGit
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="client/static/nashgit-wordmark-white.svg" />
+    <img src="docs/assets/nashgit-wordmark-dark.svg" alt="NashGit" width="240" />
+  </picture>
+</h1>
 
 ### Self-hosted git backup for your NAS. Push your work to hardware you own.
 
